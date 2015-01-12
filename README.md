@@ -1,0 +1,57 @@
+
+# Introduction
+
+Hanoi is a port of [rollout gem](https://github.com/FetLife/rollout) from [James Golick](https://github.com/jamesgolick) and [Eric Rafaloff](https://github.com/EricR).
+
+The idea behind it is to ease a simple way to enable/disable functionalities to a subset of users in a production (or any other) environment. This is in general handy upon deploying a new version of your product, in order to test the new functionalities in a subset of users. It could be useful as well as ACL mechanism.
+
+# Scenarios
+
+* Enable/disable globally a functionality
+* Enable a functionality to a specific user/subset of users
+* Disable a functionality to a specific user/subset of users
+
+
+# How to use
+
+Setting the configuration
+
+```python
+# bootstrap.py
+
+from redis import Redis
+
+from hanoi import Rollout
+
+redis = Redis()
+
+rollout = Rollout(redis)
+
+rollout.add_func(
+    'cdc_on',        # Functionality name (CDC on)
+    lambda x: x.id   # How to get the identifier
+)
+
+rollout.add_func(
+    'hd_codec_disabled',  # Functionality name (High Def codec disabled, like a blacklist)
+    lambda x: x.id,       # How to get the identifier
+    40                    # percentage
+)
+
+def get_rollout():
+    return rollout
+
+# service.py
+
+import bootstrap
+
+roll = bootstrap.get_rollout()
+
+@roll.is_cdc_on()
+def execute_cdc_logic(user):
+    pass
+
+@roll.isnot_hd_codec_disabled()
+def execute_hd_logic(user):
+    pass
+```
