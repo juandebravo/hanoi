@@ -14,9 +14,9 @@ The idea behind it is to ease a simple way to enable/disable functionalities to 
 
 # How to use
 
-Setting the configuration
 
 ```python
+# Setting the configuration
 # bootstrap.py
 
 from redis import Redis
@@ -32,26 +32,21 @@ rollout.add_func(
     lambda x: x.id   # How to get the identifier
 )
 
-rollout.add_func(
-    'hd_codec_disabled',  # Functionality name (High Def codec disabled, like a blacklist)
-    lambda x: x.id,       # How to get the identifier
-    40                    # percentage
-)
-
 def get_rollout():
     return rollout
 
+# Using Rollout
 # service.py
 
 import bootstrap
 
 roll = bootstrap.get_rollout()
 
-@roll.is_cdc_on()
+user = User(id="foo")
+
+@roll.check('cdc_on')
 def execute_cdc_logic(user):
     pass
 
-@roll.isnot_hd_codec_disabled()
-def execute_hd_logic(user):
-    pass
-```
+
+execute_cdc_logic(user)
