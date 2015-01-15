@@ -43,13 +43,18 @@ class Rollout(object):
             return self.backend.is_enabled(fn, _id)
         return wrapper
 
-    def check(self, func):
+    def check(self, func, index=1):
+        """ Decorator to check if a functionality is enabled
+        for a specific user/item.
+        @param func: functionality name to be checked
+        @param index: argument to be used as user/item
+        """
         def real_decorator(fn):
             def wrapper(*args, **kwargs):
                 if self._is_func_defined(func):
-                    _id = self.funcs[func].function(args[0])
+                    _id = self.funcs[func].function(args[index-1])
                     if self.backend.is_enabled(func, _id):
-                        fn(*args, **kwargs)
+                        return fn(*args, **kwargs)
                     else:
                         raise Exception("Function <%s> is not enabled for user <%s> " % (func, _id))
                 else:
@@ -58,12 +63,12 @@ class Rollout(object):
         return real_decorator
 
     def __getattr__(self, key):
-        prefix, fn = key.split('_', 1)
-        if prefix == 'is' and self._is_func_defined(fn):
-            func = self.funcs[fn].function
-            return self._callable(fn, func)
+        prefix, func = key.split('_', 1)
+        if prefix == 'is' and self._is_func_defined(func):
+            fn = self.funcs[func].function
+            return self._callable(func, fn)
         else:
-            raise ValueError("Function <%s> not defined" % fn)
+            raise ValueError("Function <%s> not defined" % func)
 
 
 class Function(object):

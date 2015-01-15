@@ -20,6 +20,11 @@ rollout.add_func(
     lambda x: x.id
 )
 
+rollout.add_func(
+    'is_elegible',
+    lambda x: x.id
+)
+
 
 class Foo(object):
     def __init__(self, id):
@@ -28,12 +33,14 @@ class Foo(object):
 foo = Foo("foo")
 
 rollout.register('cdc_on', foo)
+rollout.register('is_elegible', foo)
+
 
 @rollout.check('cdc_on')
-def my_test(foo):
-    print "I'm in"
+@rollout.check('is_elegible', 2)
+def my_test(foo, f):
+    return "I'm in"
 
-my_test(foo)
+print my_test(foo, Foo("foo"))
 print rollout.is_cdc_on(foo)
 print rollout.is_cdc_on(Foo("foo1"))
-print rollout.is_cdc_o()
