@@ -3,20 +3,72 @@ class Rollout(object):
 
     def __init__(self, backend):
         self.backend = backend
-        self.funcs = []
+        self.funcs = {}
 
     def add_func(self, name, check, percentage=100):
         fn = Function(name, check, percentage)
-        self.funcs.append(fn)
+        self.funcs[name] = fn
+
+    def is_enabled(self, name):
+        return self.funcs[name].enabled
+
+    def register(self, name, item):
+        self.backend.add(name, self.funcs[name].function(item))
+
+    def enabled(self, name):
+        def real_decorator(fn):
+            def wrapper(*args, **kwargs):
+                if self.is_enabled(name):
+                    fn(*args, **kwargs)
+                else:
+                    raise Exception("Function <%s> is not enabled" % name)
+            return wrapper
+        return real_decorator
+
+    def toggle(self, name):
+        self.funcs[name].enabled = not self.funcs[name].enabled
+
+    def disable(self, name):
+        self.funcs[name].enabled = False
+
+    def enable(self, name):
+        self.funcs[name].enabled = True
+
+    def _is_func_defined(self, name):
+        return name in self.funcs
+
+    def _callable(self, fn, func):
+        def wrapper(*args, **kwargs):
+            _id = func(*args, **kwargs)
+            return self.backend.is_enabled(fn, _id)
+        return wrapper
+
+    def check(self, func):
+        def real_decorator(fn):
+            def wrapper(*args, **kwargs):
+                if self._is_func_defined(func):
+                    _id = self.funcs[func].function(args[0])
+                    if self.backend.is_enabled(func, _id):
+                        fn(*args, **kwargs)
+                    else:
+                        raise Exception("Function <%s> is not enabled for user <%s> " % (func, _id))
+                else:
+                    raise Exception("Function <%s> is not defined" % func)
+            return wrapper
+        return real_decorator
 
     def __getattr__(self, key):
-        values = key.split('_', 1)
-        return lambda: values[1] in [x.name for x in self.funcs]
+        prefix, fn = key.split('_', 1)
+        if prefix == 'is' and self._is_func_defined(fn):
+            func = self.funcs[fn].function
+            return self._callable(fn, func)
+        else:
+            raise ValueError("Function <%s> not defined" % fn)
 
 
 class Function(object):
 
-    __slots__ = ['name', 'function', 'percentage']
+    __slots__ = ['name', 'function', 'percentage', 'enabled']
 
     def __init__(self, name, function, percentage):
         if not isinstance(name, basestring):
@@ -25,6 +77,7 @@ class Function(object):
         self.name = name
         self.function = function
         self.percentage = self._validate_percentage(percentage)
+        self.enabled = True
 
     def _validate_percentage(self, percentage):
         try:

@@ -3,7 +3,38 @@
 import unittest
 from pyshould import should
 
-from hanoi.api import Function
+from hanoi.api import Function, Rollout
+
+
+class RolloutTestCase(unittest.TestCase):
+
+    FN = 'foo'
+
+    def _get_basic_rollout(self, fn):
+        rollout = Rollout(None)
+        rollout.add_func(fn, lambda x: x.id)
+        return rollout
+
+    def test_register_a_functionality(self):
+        self._get_basic_rollout(self.FN).funcs | should.have_len(1)
+
+    def test_enable_a_functionality(self):
+        rollout = self._get_basic_rollout(self.FN)
+        rollout.enable(self.FN)
+        rollout.is_enabled(self.FN) | should.be_truthy
+
+    def test_dinable_a_functionality(self):
+        rollout = self._get_basic_rollout(self.FN)
+        rollout.disable(self.FN)
+        rollout.is_enabled(self.FN) | should.be_falsy
+
+    def test_toggle_a_functionality(self):
+        rollout = self._get_basic_rollout(self.FN)
+        rollout.is_enabled(self.FN) | should.be_truthy
+        rollout.toggle(self.FN)
+        rollout.is_enabled(self.FN) | should.be_falsy
+        rollout.toggle(self.FN)
+        rollout.is_enabled(self.FN) | should.be_truthy
 
 
 class FunctionTestCase(unittest.TestCase):
