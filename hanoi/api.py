@@ -1,9 +1,13 @@
+import re
+
+_regex_type = type(re.compile(r''))
 
 class Rollout(object):
 
     def __init__(self, backend):
         self.backend = backend
         self.funcs = {}
+        self._item = None
 
     def add_func(self, name, check, percentage=100):
         fn = Function(name, check, percentage)
@@ -13,7 +17,20 @@ class Rollout(object):
         return self.funcs[name].enabled
 
     def register(self, name, item):
-        self.backend.add(name, self.funcs[name].function(item))
+        if type(item) == _regex_type:
+            self.backend.set_rule(name, item)
+        else:
+            self.backend.add(name, self.funcs[name].function(item))
+
+    def set_current_id(self, name):
+        """
+        Initiate the current user mapped to the request, so there's no need to
+        pass as parameter in every check
+        """
+        self._item = name
+
+    def cleanup_current_id(self):
+        self._item = None
 
     def enabled(self, name):
         def real_decorator(fn):
@@ -43,7 +60,7 @@ class Rollout(object):
             return self.backend.is_enabled(fn, _id)
         return wrapper
 
-    def check(self, func, index=1):
+    def check(self, func, index=None):
         """ Decorator to check if a functionality is enabled
         for a specific user/item.
         @param func: functionality name to be checked
@@ -52,7 +69,12 @@ class Rollout(object):
         def real_decorator(fn):
             def wrapper(*args, **kwargs):
                 if self._is_func_defined(func):
-                    _id = self.funcs[func].function(args[index-1])
+                    if index is not None:
+                        _id = self.funcs[func].function(args[index-1])
+                    else:
+                        _id = self._item
+                    if _id is None:
+                        raise Exception("Identifier should be set before checking the functionality")
                     if self.backend.is_enabled(func, _id):
                         return fn(*args, **kwargs)
                     else:
