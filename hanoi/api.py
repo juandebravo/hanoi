@@ -6,31 +6,36 @@ _regex_type = type(re.compile(r''))
 class Rollout(object):
 
     def __init__(self, backend):
-        self.backend = backend
-        self.funcs = {}
+        self._backend = backend
         self._item = None
 
-    def add_func(self, name, check=None, percentage=100):
-        fn = Function(name, check, percentage)
-        self.funcs[name] = fn
+    @property
+    def backend(self):
+        if self._backend is None:
+            raise Exception("BackEnd should be a valid backend object")
+        return self._backend
 
-    def is_enabled(self, name):
-        return self.funcs[name].enabled
+    def add_func(self, name, check=None, percentage=0):
+        fn = Feature(name, check, percentage)
+        self.backend.add_functionality(fn)
+
+    def is_enabled(self, name, item=None):
+        return self.backend.is_enabled(name, item)
 
     def register(self, name, item):
         if type(item) == _regex_type:
             self.backend.set_rule(name, item)
-        elif isinstance(item, basestring):
-            self.backend.add(name, item)
-        elif self.funcs[name].function:
-            self.backend.add(name, self.funcs[name].function(item))
         else:
             self.backend.add(name, item)
 
+    def set_percentage(self, name, percentage):
+        self.backend.set_percentage(name, percentage)
+
     def set_current_id(self, name):
         """
-        Initiate the current user mapped to the request, so there's no need to
-        pass as parameter in every check
+        Map a specifc user to the instance, so there's no need to
+        pass as parameter in every check. Don't use this approach if you need
+        a thread safe environment.
         """
         self._item = name
 
@@ -38,26 +43,27 @@ class Rollout(object):
         self._item = None
 
     def enabled(self, name):
+        """Decorator for global functionalities without checking the specific user"""
         def real_decorator(fn):
             def wrapper(*args, **kwargs):
                 if self.is_enabled(name):
-                    fn(*args, **kwargs)
+                    return fn(*args, **kwargs)
                 else:
-                    raise Exception("Function <%s> is not enabled" % name)
+                    raise Exception("Feature <%s> is not enabled" % name)
             return wrapper
         return real_decorator
 
     def toggle(self, name):
-        self.funcs[name].enabled = not self.funcs[name].enabled
+        self.backend.toggle(name)
 
     def disable(self, name):
-        self.funcs[name].enabled = False
+        self.backend.disable(name)
 
     def enable(self, name):
-        self.funcs[name].enabled = True
+        self.backend.enable(name)
 
     def _is_func_defined(self, name):
-        return name in self.funcs
+        return name in self.backend.get_functionalities()
 
     def _callable(self, fn, func):
         def wrapper(*args, **kwargs):
@@ -69,14 +75,16 @@ class Rollout(object):
         """ Decorator to check if a functionality is enabled
         for a specific user/item.
         @param func: functionality name to be checked
-        @param index: argument to be used as user/item
+        @param index: argument to be used as user/item. If None, it will seek for the item
+        in the current_id value
         """
         def real_decorator(fn):
             def wrapper(*args, **kwargs):
                 if self._is_func_defined(func):
                     if index is not None:
-                        if self.funcs[func].function:
-                            _id = self.funcs[func].function(args[index-1])
+                        _fn = self.backend.get_functionality(func)
+                        if _fn.function:
+                            _id = _fn.function(args[index-1])
                         else:
                             _id = args[index-1]
                     else:
@@ -86,31 +94,31 @@ class Rollout(object):
                     if self.backend.is_enabled(func, _id):
                         return fn(*args, **kwargs)
                     else:
-                        raise Exception("Function <%s> is not enabled for user <%s> " % (func, _id))
+                        raise Exception("Feature <%s> is not enabled for user <%s> " % (func, _id))
                 else:
-                    raise Exception("Function <%s> is not defined" % func)
+                    raise Exception("Feature <%s> is not defined" % func)
             return wrapper
         return real_decorator
 
     def __getattr__(self, key):
         prefix, func = key.split('_', 1)
         if prefix == 'is' and self._is_func_defined(func):
-            fn = self.funcs[func].function
-            if fn is None:
+            _fn = self.backend.get_functionality(func).function
+            if _fn is None:
                 # Unity lambda. TODO: just avoid wrapping
-                fn = lambda x: x
-            return self._callable(func, fn)
+                _fn = lambda x: x
+            return self._callable(func, _fn)
         else:
-            raise ValueError("Function <%s> not defined" % func)
+            raise ValueError("Feature <%s> not defined" % func)
 
 
-class Function(object):
+class Feature(object):
 
     __slots__ = ['name', 'function', 'percentage', 'enabled']
 
     def __init__(self, name, function, percentage):
         if not isinstance(name, basestring):
-            raise AttributeError("Function name should be a string")
+            raise AttributeError("Feature name should be a string")
 
         self.name = name
         self.function = function
@@ -127,11 +135,14 @@ class Function(object):
             raise AttributeError("Percentage should be a number between 0 and 100")
         return value
 
+    def get_item_id(self, item):
+        return self.function(item) if self.function else str(item)
+
     def __setattr__(self, name, value):
         if name == 'percentage':
             value = self._validate_percentage(value)
         elif name == 'name' and hasattr(self, name):
-            raise RuntimeError("Unable to update the Function name")
+            raise RuntimeError("Unable to update the Feature name")
 
         object.__setattr__(self, name, value)
 

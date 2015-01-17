@@ -2,25 +2,7 @@ import hanoi
 import re
 
 
-class BackEnd(object):
-    def __init__(self):
-        self.reg = {}
-        self.rules = {}
-
-    def add(self, name, item):
-        if not name in self.reg:
-            self.reg[name] = []
-        self.reg[name].append(item)
-
-    def set_rule(self, name, rule):
-        self.rules[name] = rule
-
-    def is_enabled(self, name, item):
-        flag = name in self.reg and item in self.reg[name]
-        flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
-        return flag
-
-rollout = hanoi.Rollout(BackEnd())
+rollout = hanoi.Rollout(hanoi.MemoryBackEnd())
 
 rollout.add_func(
     'cdc_on',
@@ -55,6 +37,9 @@ print my_test(foo, Foo("444400"))
 print rollout.is_cdc_on(foo)
 print rollout.is_cdc_on(Foo("foo1"))
 
+rollout.register('cdc_on', "444402")
+print rollout.is_cdc_on(Foo("444402"))
+
 rollout.set_current_id("444400")
 
 
@@ -64,3 +49,4 @@ def my_test_ii():
 
 
 print my_test_ii()
+print rollout.is_enabled('cdc_on', "44111100")
