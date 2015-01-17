@@ -17,7 +17,7 @@ class BackEnd(object):
 
     def is_enabled(self, name, item):
         flag = name in self.reg and item in self.reg[name]
-        flag = flag or (name in self.rules and self.rules[name].search(item) is not None)
+        flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         return flag
 
 rollout = hanoi.Rollout(BackEnd())
@@ -36,6 +36,9 @@ rollout.add_func(
 class Foo(object):
     def __init__(self, id):
         self.id = id
+
+    def __repr__(self):
+        return self.id
 
 foo = Foo("444400")
 

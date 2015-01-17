@@ -2,6 +2,7 @@ import re
 
 _regex_type = type(re.compile(r''))
 
+
 class Rollout(object):
 
     def __init__(self, backend):
@@ -9,7 +10,7 @@ class Rollout(object):
         self.funcs = {}
         self._item = None
 
-    def add_func(self, name, check, percentage=100):
+    def add_func(self, name, check=None, percentage=100):
         fn = Function(name, check, percentage)
         self.funcs[name] = fn
 
@@ -19,8 +20,12 @@ class Rollout(object):
     def register(self, name, item):
         if type(item) == _regex_type:
             self.backend.set_rule(name, item)
-        else:
+        elif isinstance(item, basestring):
+            self.backend.add(name, item)
+        elif self.funcs[name].function:
             self.backend.add(name, self.funcs[name].function(item))
+        else:
+            self.backend.add(name, item)
 
     def set_current_id(self, name):
         """
@@ -70,7 +75,10 @@ class Rollout(object):
             def wrapper(*args, **kwargs):
                 if self._is_func_defined(func):
                     if index is not None:
-                        _id = self.funcs[func].function(args[index-1])
+                        if self.funcs[func].function:
+                            _id = self.funcs[func].function(args[index-1])
+                        else:
+                            _id = args[index-1]
                     else:
                         _id = self._item
                     if _id is None:
@@ -88,6 +96,9 @@ class Rollout(object):
         prefix, func = key.split('_', 1)
         if prefix == 'is' and self._is_func_defined(func):
             fn = self.funcs[func].function
+            if fn is None:
+                # Unity lambda. TODO: just avoid wrapping
+                fn = lambda x: x
             return self._callable(func, fn)
         else:
             raise ValueError("Function <%s> not defined" % func)
