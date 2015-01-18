@@ -4,7 +4,7 @@ import unittest
 from nose.plugins.skip import SkipTest
 from pyshould import should
 
-from hanoi.api import Feature, Rollout
+from hanoi.api import Feature, Rollout, RolloutException
 from hanoi.backend import MemoryBackEnd
 
 
@@ -31,7 +31,23 @@ class RolloutTestCase(unittest.TestCase):
         rollout.add_func(fn, lambda x: x.id)
         return rollout
 
+    def test_backend_should_not_be_none(self):
+        rollout = Rollout(None)
+        with should.throw(TypeError):
+            rollout.backend
+
     def test_register_a_functionality(self):
+        self.rollout.backend.get_functionalities() | should.have_len(1)
+
+    def test_register_two_functionalities(self):
+        self.rollout.add_func('bar', lambda x: x.id, percentage=0)
+        self.rollout.backend.get_functionalities() | should.have_len(2)
+        self.rollout.backend.get_functionalities() | should.eql([
+            self.FN, 'bar'
+        ])
+
+    def test_overrides_a_functionality_with_same_name(self):
+        self.rollout.add_func(self.FN, lambda x: x.id)
         self.rollout.backend.get_functionalities() | should.have_len(1)
 
     def test_enable_a_functionality(self):
@@ -138,11 +154,47 @@ class RolloutTestCase(unittest.TestCase):
         self.rollout.register(self.FN, re.compile("10$"))
         self.rollout.is_enabled(self.FN, "0000010") | should.be_truthy
 
-    def test_decorator_enabled(self):
-        raise SkipTest("to be done")
+    def test_decorator_enabled_decorator_when_feature_enabled(self):
+        @self.rollout.enabled(self.FN)
+        def foo(name):
+            return name
 
-    def test_decorator_check(self):
-        raise SkipTest("to be done")
+        foo('bazz') | should.eql('bazz')
+
+    def test_decorator_enabled_decorator_when_feature_not_exist(self):
+        @self.rollout.enabled('bar')
+        def foo(name):
+            return name
+
+        with should.throw(RolloutException):
+            foo('bazz')
+
+    def test_decorator_enabled_decorator_when_feature_disabled(self):
+        @self.rollout.enabled(self.FN)
+        def foo(name):
+            return name
+
+        self.rollout.disable(self.FN)
+        with should.throw(RolloutException):
+            foo('bazz')
+
+    def test_decorator_check_with_current_id(self):
+        @self.rollout.check(self.FN)
+        def foo(name):
+            return name
+
+        self.rollout.set_current_id('bar')
+        self.rollout.register(self.FN, 'bar')
+        foo('bazz') | should.eql('bazz')
+
+    def test_decorator_check_with_argument(self):
+        @self.rollout.check(self.FN, 1)
+        def foo(name):
+            return name.id
+
+        self.rollout.set_current_id('foo')
+        self.rollout.register(self.FN, 'bar')
+        foo(Foo('bar')) | should.eql('bar')
 
 
 class FeatureTestCase(unittest.TestCase):

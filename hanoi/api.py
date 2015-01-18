@@ -12,7 +12,7 @@ class Rollout(object):
     @property
     def backend(self):
         if self._backend is None:
-            raise Exception("BackEnd should be a valid backend object")
+            raise TypeError("BackEnd should be a valid BackEnd object")
         return self._backend
 
     def add_func(self, name, check=None, percentage=0):
@@ -49,7 +49,7 @@ class Rollout(object):
                 if self.is_enabled(name):
                     return fn(*args, **kwargs)
                 else:
-                    raise Exception("Feature <%s> is not enabled" % name)
+                    raise RolloutException("Feature <%s> is not enabled" % name)
             return wrapper
         return real_decorator
 
@@ -152,3 +152,7 @@ class Feature(object):
             self.function,
             self.percentage
         )
+
+
+class RolloutException(Exception):
+    pass

@@ -56,7 +56,7 @@ execute_cdc_logic(user)
 
 # TODO before BETA
 
-- [ ] Finish unit testing Rollout class
+- [X] Finish unit testing Rollout class
 - [ ] Finish unit testing Function class
 - [ ] Finish unit testing MemoryBackEnd class
 - [ ] Implement Redis BackEnd
