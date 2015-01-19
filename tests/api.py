@@ -4,8 +4,8 @@ import unittest
 from nose.plugins.skip import SkipTest
 from pyshould import should
 
-from hanoi.api import Feature, Rollout, RolloutException
-from hanoi.backend import MemoryBackEnd
+from hanoi.api import Rollout, RolloutException
+from hanoi.backend import Feature, MemoryBackEnd
 
 
 class Foo(object):
@@ -199,13 +199,21 @@ class RolloutTestCase(unittest.TestCase):
 
 class FeatureTestCase(unittest.TestCase):
 
+    def test_is_enabled_by_default(self):
+        f = Feature('foo', lambda x: True, '100')
+        f.enabled | should.be_truthy
+
     def test_name_is_valid_as_a_string(self):
         f = Feature('foo', lambda x: True, '100')
         f.name | should.eql('foo')
 
-    def test_name_is_valid_as_a_unicode(self):
+    def test_name_is_valid_as_unicode(self):
         f = Feature(u'üéê', lambda x: True, '100')
         f.name | should.eql(u'üéê')
+
+    def test_name_cannot_be_None(self):
+        with should.throw(AttributeError):
+            Feature(None, lambda x: True, '100')
 
     def test_name_should_be_a_string(self):
         with should.throw(AttributeError):

@@ -57,9 +57,9 @@ execute_cdc_logic(user)
 # TODO before BETA
 
 - [X] Finish unit testing Rollout class
-- [ ] Finish unit testing Function class
+- [X] Finish unit testing Function class
 - [ ] Finish unit testing MemoryBackEnd class
-- [ ] Implement Redis BackEnd
+- [X] Implement Redis BackEnd
 - [ ] Document the different use cases and when to use both backends
 - [ ] Integrate travis.ci
 - [ ] Upload a beta version to pypy

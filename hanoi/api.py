@@ -1,5 +1,7 @@
 import re
 
+from .backend import Feature
+
 _regex_type = type(re.compile(r''))
 
 
@@ -110,48 +112,6 @@ class Rollout(object):
             return self._callable(func, _fn)
         else:
             raise ValueError("Feature <%s> not defined" % func)
-
-
-class Feature(object):
-
-    __slots__ = ['name', 'function', 'percentage', 'enabled']
-
-    def __init__(self, name, function, percentage):
-        if not isinstance(name, basestring):
-            raise AttributeError("Feature name should be a string")
-
-        self.name = name
-        self.function = function
-        self.percentage = self._validate_percentage(percentage)
-        self.enabled = True
-
-    def _validate_percentage(self, percentage):
-        try:
-            value = int(percentage)
-        except ValueError:
-            raise AttributeError("Percentage should be a valid number")
-
-        if 0 > value or value > 100:
-            raise AttributeError("Percentage should be a number between 0 and 100")
-        return value
-
-    def get_item_id(self, item):
-        return self.function(item) if self.function else str(item)
-
-    def __setattr__(self, name, value):
-        if name == 'percentage':
-            value = self._validate_percentage(value)
-        elif name == 'name' and hasattr(self, name):
-            raise RuntimeError("Unable to update the Feature name")
-
-        object.__setattr__(self, name, value)
-
-    def __repr__(self):
-        return "<{0}> applying {1} to {2}% users".format(
-            self.name,
-            self.function,
-            self.percentage
-        )
 
 
 class RolloutException(Exception):
