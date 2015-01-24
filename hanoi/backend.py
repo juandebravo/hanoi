@@ -182,7 +182,6 @@ class RedisBackEnd(object):
 
     def add_functionality(self, fn, users=None):
         data = ",".join(users) if users is not None else ''
-
         self._redis.set(
             self._get_func_key(fn.name),
             "|".join(['1' if fn.enabled else '0', str(fn.percentage), fn.field or '', data])

@@ -19,39 +19,60 @@ The idea behind it is to ease a simple way to enable/disable functionalities to 
 
 ```python
 # Setting the configuration
+# -------------------------
+
 # bootstrap.py
 
 from redis import Redis
-
-from hanoi import Rollout
+import hanoi
 
 redis = Redis()
 
-rollout = Rollout(redis)
+rollout = hanoi.Rollout(redis)
 
 rollout.add_func(
     'cdc_on',        # Functionality name (CDC on)
-    lambda x: x.id   # How to get the identifier
+    'id',            # Object identifier
+    80               # Percentage for toggle ON
 )
+
+rollout.register('cdc_on', '447568110000')  # Register a specific user
+
+import re
+
+rollout.register('cdc_on', re.compile(r'01$')  # Register a subset of users
 
 def get_rollout():
     return rollout
 
+
 # Using Rollout
+# -------------
+
 # service.py
 
 import bootstrap
 
 roll = bootstrap.get_rollout()
 
-user = User(id="foo")
+# Define the current user (kind of ThreadLocal)
+rollout.set_current_id(User('444401')
 
-@roll.check('cdc_on')
-def execute_cdc_logic(user):
+@roll.check('cdc_on')  # Check if the current user is registerd to `cdc_on`
+def execute_cdc_logic():
     pass
 
+execute_cdc_logic()
 
-execute_cdc_logic(user)
+print rollout.is_enabled('cdc_on', '44488')  # Check if it's enabled `cdc_on` to the user `44488`
+
+
+@rollout.check('cdc_on', 2)  # Check if it's enabled `cdc_on` to the second parameter
+def execute_again_cdc_logic(parameter, user):
+    return "I'm in"
+
+print execute_again_cdc_logic('foo', '444401')
+
 ```
 
 # TODO before BETA
