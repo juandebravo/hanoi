@@ -85,10 +85,7 @@ class Rollout(object):
                 if self._is_func_defined(func):
                     if index is not None:
                         _fn = self.backend.get_functionality(func)
-                        if _fn.function:
-                            _id = _fn.function(args[index-1])
-                        else:
-                            _id = args[index-1]
+                        _id = _fn.get_item_id(args[index-1])
                     else:
                         _id = self._item
                     if _id is None:

@@ -22,7 +22,7 @@ class RolloutTestCase(unittest.TestCase):
 
     def _get_basic_rollout(self, fn):
         rollout = Rollout(MemoryBackEnd())
-        rollout.add_func(fn, lambda x: x.id)
+        rollout.add_func(fn, 'id')
         return rollout
 
     def setUp(self):
@@ -100,10 +100,8 @@ class RolloutTestCase(unittest.TestCase):
         self.rollout.enable(self.FN)
         self.rollout.set_percentage(self.FN, 50)
         user = Foo("1")
-        self.rollout.register(self.FN, user)
         self.rollout.is_enabled(self.FN, user) | should.be_truthy
         u = Foo("2")
-        self.rollout.register(self.FN, u)
         self.rollout.is_enabled(self.FN, u) | should.be_falsy
 
     def test_a_functionality_with_percentage_50_disabled(self):
@@ -204,7 +202,7 @@ class RolloutWithRedisTestCase(unittest.TestCase):
     def _get_basic_rollout(self, fn):
         rollout = Rollout(RedisBackEnd())
         rollout.backend._redis.flushdb()
-        rollout.add_func(fn, lambda x: x.id)
+        rollout.add_func(fn, 'id')
         return rollout
 
     def setUp(self):
@@ -222,14 +220,14 @@ class RolloutWithRedisTestCase(unittest.TestCase):
         self.rollout.backend.get_functionalities() | should.have_len(1)
 
     def test_register_two_functionalities(self):
-        self.rollout.add_func('bar', lambda x: x.id, percentage=0)
+        self.rollout.add_func('bar', 'id', percentage=0)
         self.rollout.backend.get_functionalities() | should.have_len(2)
         self.rollout.backend.get_functionalities() | should.eql([
             self.FN, 'bar'
         ])
 
     def test_overrides_a_functionality_with_same_name(self):
-        self.rollout.add_func(self.FN, lambda x: x.id)
+        self.rollout.add_func(self.FN, 'id')
         self.rollout.backend.get_functionalities() | should.have_len(1)
 
     def test_enable_a_functionality(self):

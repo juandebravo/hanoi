@@ -9,14 +9,14 @@ except ImportError:
 
 class Feature(object):
 
-    __slots__ = ['name', 'function', 'percentage', 'enabled']
+    __slots__ = ['name', 'field', 'percentage', 'enabled']
 
-    def __init__(self, name, function=None, percentage=100):
+    def __init__(self, name, field=None, percentage=100):
         if not isinstance(name, basestring):
             raise AttributeError("Feature name should be a string")
 
         self.name = name
-        self.function = function
+        self.field = field
         self.percentage = self._validate_percentage(percentage)
         self.enabled = True
 
@@ -31,7 +31,15 @@ class Feature(object):
         return value
 
     def get_item_id(self, item):
-        return self.function(item) if self.function else str(item)
+        if self.field:
+            if hasattr(self.field, '__call__'):
+                return item.__dict__[self.field]()
+            elif hasattr(item, '__dict__'):
+                return item.__dict__[self.field]
+            else:
+                return item
+        else:
+            return str(item)
 
     def __setattr__(self, name, value):
         """
@@ -49,7 +57,7 @@ class Feature(object):
     def __repr__(self):
         return "<{0}> applying {1} to {2}% users".format(
             self.name,
-            self.function,
+            self.field,
             self.percentage
         )
 
@@ -77,12 +85,7 @@ class MemoryBackEnd(object):
         if not name in self.reg:
             self.reg[name] = []
 
-        if isinstance(item, basestring):
-            self._add(name, item)
-        elif self.funcs[name].function:
-            self._add(name, self.funcs[name].function(item))
-        else:
-            self._add(name, item)
+        self._add(name, item)
 
     def set_rule(self, name, rule):
         self.rules[name] = rule
@@ -154,18 +157,18 @@ class RedisBackEnd(object):
 
         self._prefix_len = len(self.PREFIX.format(''))
         self.rules = {}
-        self.funcs = {}
 
     @classmethod
     def unserialize_feature(cls, name, value):
         if value:
-            enabled, percentage, users = value.split("|")
+            enabled, percentage, field, users = value.split("|")
         else:
             percentage = 100
             users = None
+            field = None
             enabled = '1'
 
-        f = Feature(name, None, percentage)
+        f = Feature(name, field, percentage)
         f.enabled = enabled == '1'
 
         return f, users.split(",") if users else []
@@ -179,11 +182,10 @@ class RedisBackEnd(object):
 
     def add_functionality(self, fn, users=None):
         data = ",".join(users) if users is not None else ''
-        if fn.function:
-            self.funcs[fn.name] = fn.function
+
         self._redis.set(
             self._get_func_key(fn.name),
-            "|".join(['1' if fn.enabled else '0', str(fn.percentage), data])
+            "|".join(['1' if fn.enabled else '0', str(fn.percentage), fn.field or '', data])
         )
 
     def _get_functionality(self, name):
@@ -200,7 +202,7 @@ class RedisBackEnd(object):
         func, users = self._get_functionality(name)
         if func:
             if item not in users:
-                users.append(item)
+                users.append(func.get_item_id(item))
                 self.add_functionality(func, users)
             else:
                 pass  # Avoid duplicating users
@@ -208,12 +210,7 @@ class RedisBackEnd(object):
             raise ValueError("Functionality <%s> does not exist" % name)  # Functionality does not exist
 
     def add(self, name, item):
-        if isinstance(item, basestring):
-            self._add(name, item)
-        elif name in self.funcs and self.funcs[name]:
-            self._add(name, self.funcs[name](item))
-        else:
-            self._add(name, item)
+        self._add(name, item)
 
     def set_rule(self, name, rule):
         self.rules[name] = rule
@@ -241,10 +238,7 @@ class RedisBackEnd(object):
             return func_is_enabled
 
         flag = functionality.percentage == 100
-        if name in self.funcs:
-            flag = flag or (self.funcs[name](item) in users)
-        else:
-            flag = flag or (item in users)
+        flag = flag or (functionality.get_item_id(item) in users)
         flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         if not flag and functionality.percentage > 0:
             flag = zlib.crc32(item) % 100 >= functionality.percentage
