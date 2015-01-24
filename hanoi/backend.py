@@ -11,7 +11,7 @@ class Feature(object):
 
     __slots__ = ['name', 'function', 'percentage', 'enabled']
 
-    def __init__(self, name, function, percentage):
+    def __init__(self, name, function=None, percentage=100):
         if not isinstance(name, basestring):
             raise AttributeError("Feature name should be a string")
 
@@ -120,11 +120,32 @@ class MemoryBackEnd(object):
 
 
 class RedisBackEnd(object):
+    """
+    Implements a BackEnd using REDIS as system storage.
+    - It creates a new key per functionality that should be stored.
+
+    - To retrieve the list of functionalities, it searches Redis DB using KEYS.
+        Take this into account as it might create a performance issue if the amount
+        of functionalities is huge: http://redis.io/commands/keys
+
+    - Specific functionality information (percentage, users) is stored using a String.
+        Users could be stored via SET, but this will imply a O(N) operation to retrieve
+        all the users.
+
+    Another approach to store the information:
+    - serialize the functionality names, percentage in a String (to avoid using KEYS `pattern`)
+    - store the users in a SET and warn about retrieving every user. We might even deprecate the
+    `get_functionality` operation as the main purpose is just check if a functionality is enabled
+    for a specific user.
+
+    """
 
     PREFIX = "rollout:{0}"
 
-    def __init__(self, obj):
-        if isinstance(obj, (list, tuple)):
+    def __init__(self, obj=None):
+        if obj is None:
+            self._redis = Redis()
+        elif isinstance(obj, (list, tuple)):
             host, port = obj[0], obj[1]
             db = obj[2] if len(obj) >= 3 else 0
             self._redis = Redis(host=host, port=port, db=db)
@@ -133,6 +154,7 @@ class RedisBackEnd(object):
 
         self._prefix_len = len(self.PREFIX.format(''))
         self.rules = {}
+        self.funcs = {}
 
     @classmethod
     def unserialize_feature(cls, name, value):
@@ -157,28 +179,39 @@ class RedisBackEnd(object):
 
     def add_functionality(self, fn, users=None):
         data = ",".join(users) if users is not None else ''
+        if fn.function:
+            self.funcs[fn.name] = fn.function
         self._redis.set(
             self._get_func_key(fn.name),
             "|".join(['1' if fn.enabled else '0', str(fn.percentage), data])
         )
 
-    def get_functionality(self, name):
+    def _get_functionality(self, name):
         redis_value = self._redis.get(self._get_func_key(name))
-        return self.unserialize_feature(name, redis_value)
+        if redis_value:
+            return self.unserialize_feature(name, redis_value)
+        else:
+            return None, []
+
+    def get_functionality(self, name):
+        return self._get_functionality(name)[0]
 
     def _add(self, name, item):
-        func, users = self.get_functionality(name)
-        if item not in users:
-            users.append(item)
-            self.add_functionality(func, users)
+        func, users = self._get_functionality(name)
+        if func:
+            if item not in users:
+                users.append(item)
+                self.add_functionality(func, users)
+            else:
+                pass  # Avoid duplicating users
         else:
-            pass  # Avoid duplicating users
+            raise ValueError("Functionality <%s> does not exist" % name)  # Functionality does not exist
 
     def add(self, name, item):
         if isinstance(item, basestring):
             self._add(name, item)
-        elif self.funcs[name].function:
-            self._add(name, self.funcs[name].function(item))
+        elif name in self.funcs and self.funcs[name]:
+            self._add(name, self.funcs[name](item))
         else:
             self._add(name, item)
 
@@ -186,14 +219,18 @@ class RedisBackEnd(object):
         self.rules[name] = rule
 
     def set_percentage(self, name, percentage):
-        func, users = self.get_functionality(name)
+        func, users = self._get_functionality(name)
         func.percentage = percentage
         self.add_functionality(func, users)
 
     def is_enabled(self, name, item=None):
         func_is_enabled = name in self.get_functionalities()
-        functionality, users = self.get_functionality(name)
-        func_is_enabled = func_is_enabled and functionality.enabled
+        if not func_is_enabled:
+            # Stop if functionality not even exist
+            return False
+
+        functionality, users = self._get_functionality(name)
+        func_is_enabled = functionality.enabled
 
         if item is None:
             # Global funcionality enabled?
@@ -204,25 +241,28 @@ class RedisBackEnd(object):
             return func_is_enabled
 
         flag = functionality.percentage == 100
-        flag = flag or (name in users)
+        if name in self.funcs:
+            flag = flag or (self.funcs[name](item) in users)
+        else:
+            flag = flag or (item in users)
         flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         if not flag and functionality.percentage > 0:
             flag = zlib.crc32(item) % 100 >= functionality.percentage
         return flag
 
     def disable(self, name):
-        func, users = self.get_functionality(name)
+        func, users = self._get_functionality(name)
         func.enabled = False
         self.add_functionality(func, users)
 
     def enable(self, name, enable_to_all=False):
-        func, users = self.get_functionality(name)
+        func, users = self._get_functionality(name)
         func.enabled = True
         if enable_to_all:
             func.percentage = 100
         self.add_functionality(func, users)
 
     def toggle(self, name):
-        func, users = self.get_functionality(name)
+        func, users = self._get_functionality(name)
         func.enabled = not func.enabled
         self.add_functionality(func, users)
