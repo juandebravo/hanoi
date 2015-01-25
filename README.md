@@ -18,7 +18,7 @@ The idea behind it is to ease a simple way to enable/disable functionalities to 
 
 # Scenarios
 
-* Check if the functionality A is enabled to user B.
+* Check if the functionality A is enabled for user B.
 
 ```python
 rollout.is_enabled('A', B)
@@ -113,9 +113,9 @@ print execute_again_cdc_logic('foo', '443301')  # Based on the rules defined in 
 
 Currently there're two implemented BackEnds:
 
-- [MemoryBackEnd](https://github.com/juandebravo/hanoi/blob/feature/draft/hanoi/backend.py#L65): useful for development or where you have predefined rules and don't need to share information between different processes.
+- [MemoryBackEnd](https://github.com/juandebravo/hanoi/blob/master/hanoi/backend.py#L65): useful for development or where you have predefined rules and don't need to share information between different processes.
 
-- [RedisBackEnd](https://github.com/juandebravo/hanoi/blob/feature/draft/hanoi/backend.py#L125): useful for distributed environments, where you need to easily update functionalities, rules or users attached to a specific functionality.
+- [RedisBackEnd](https://github.com/juandebravo/hanoi/blob/master/hanoi/backend.py#L125): useful for distributed environments, where you need to easily update functionalities, rules or users attached to a specific functionality.
 
 # TODO before BETA
 
@@ -124,6 +124,6 @@ Currently there're two implemented BackEnds:
 - [X] Implement Redis BackEnd
 - [X] Finish unit testing RedisBackEnd class
 - [X] Document the different use cases and when to use both backends
-- [ ] Integrate travis.ci
+- [X] Integrate travis.ci
 - [ ] Upload a beta version to pypy
 - [ ] Write a blog post
