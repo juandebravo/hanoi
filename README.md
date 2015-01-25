@@ -1,5 +1,7 @@
 
-# Introduction
+# Hanoi
+
+[![Build Status](https://travis-ci.org/juandebravo/hanoi.svg?branch=master)](https://travis-ci.org/juandebravo/hanoi)
 
 Work in progress!! Alpha version.
 
