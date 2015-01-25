@@ -7,7 +7,7 @@ Hanoi is a port of [rollout gem](https://github.com/FetLife/rollout) from [James
 
 The idea behind it is to ease a simple way to enable/disable functionalities to a subset of users in a production (or any other) environment. This is in general handy upon deploying a new version of your product, in order to test the new functionalities in a subset of users. It could be useful as well as ACL mechanism.
 
-# Functionalities
+# Use cases
 
 * Enable a functionality globally (every user).
 * Enable a functionality to a percentage of users via Cyclic Redundancy Check(user identifier) % 100.
