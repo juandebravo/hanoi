@@ -125,5 +125,6 @@ Currently there're two implemented BackEnds:
 - [X] Finish unit testing RedisBackEnd class
 - [X] Document the different use cases and when to use both backends
 - [X] Integrate travis.ci
-- [ ] Upload a beta version to pypi
+- [X] Upload a beta version to pypi
+- [ ] Think about a cooler name :wink:
 - [ ] Write a blog post
