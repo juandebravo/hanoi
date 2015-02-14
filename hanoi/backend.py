@@ -259,3 +259,143 @@ class RedisBackEnd(object):
         func, users = self._get_functionality(name)
         func.enabled = not func.enabled
         self.add_functionality(func, users)
+
+
+class RedisHighPerfBackEnd(object):
+    """
+    Implements a BackEnd using REDIS as system storage.
+    Per each functionality to be tackled:
+        - It creates a STRING with the relevant Functionality
+          information (enabled, field, percentage)
+        - It will use a SET with the `whitelisted` identifiers
+
+    - get_functionalities is not implemented
+
+    Use this implementation for better performance.
+
+    """
+
+    PREFIX = "rollout:{0}"
+
+    SET_PREFIX = "rollout:users:{0}"
+
+    def __init__(self, obj=None):
+        if obj is None:
+            self._redis = Redis()
+        elif isinstance(obj, (list, tuple)):
+            host, port = obj[0], obj[1]
+            db = obj[2] if len(obj) >= 3 else 0
+            self._redis = Redis(host=host, port=port, db=db)
+        else:
+            self._redis = obj
+
+        self._prefix_len = len(self.PREFIX.format(''))
+        self.rules = {}
+
+    @classmethod
+    def unserialize_feature(cls, name, value):
+        if value:
+            enabled, percentage, field = value.split("|")
+        else:
+            enabled = '1'
+            percentage = 100
+            field = None
+
+        f = Feature(name, field, percentage)
+        f.enabled = enabled == '1'
+
+        return f
+
+    def _get_func_key(self, name):
+        return self.PREFIX.format(name)
+
+    def get_functionalities(self):
+        raise NotImplementedError('get_functionalities unavailable in RedisHighPerfBackEnd')
+
+    def add_functionality(self, fn, users=None):
+        self._redis.set(
+            self._get_func_key(fn.name),
+            "|".join(['1' if fn.enabled else '0', str(fn.percentage), fn.field or ''])
+        )
+        if users:
+            # TODO: ensure we don't need a loop
+            for u in users:
+                self._redis.sadd(
+                    self.SET_PREFIX.format(fn.name),
+                    u
+                )
+
+    def _get_functionality(self, name):
+        redis_value = self._redis.get(self._get_func_key(name))
+        if redis_value:
+            return self.unserialize_feature(name, redis_value)
+        else:
+            return None
+
+    def get_functionality(self, name):
+        return self._get_functionality(name)
+
+    def add(self, name, item):
+        func = self._get_functionality(name)
+        if func:
+            self._redis.sadd(
+                self.SET_PREFIX.format(func.name),
+                func.get_item_id(item)
+            )
+        else:
+            raise ValueError("Functionality <%s> does not exist" % name)
+
+    def set_rule(self, name, rule):
+        self.rules[name] = rule
+
+    def set_percentage(self, name, percentage):
+        # Use a Transaction
+        func = self._get_functionality(name)
+        func.percentage = percentage
+        self.add_functionality(func)
+
+    def is_enabled(self, name, item=None):
+        functionality = self._get_functionality(name)
+        if not functionality:
+            # Stop if functionality not even exist
+            return False
+
+        func_is_enabled = functionality.enabled
+
+        if item is None:
+            # Global funcionality enabled?
+            return func_is_enabled
+
+        if not func_is_enabled:
+            # Avoid additional lookup as the functionality is globally disabled
+            return func_is_enabled
+
+        flag = functionality.percentage == 100
+        flag = flag or self._allowed_user(functionality, item)
+        flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
+        if not flag and functionality.percentage > 0:
+            flag = zlib.crc32(item) % 100 >= functionality.percentage
+        return flag
+
+    def _allowed_user(self, functionality, user):
+        return self._redis.sismember(
+            self.SET_PREFIX.format(functionality.name),
+            functionality.get_item_id(user)
+        )
+
+    def disable(self, name):
+        func = self._get_functionality(name)
+        func.enabled = False
+        self.add_functionality(func)
+
+    def enable(self, name, enable_to_all=False):
+        func = self._get_functionality(name)
+        func.enabled = True
+        if enable_to_all:
+            func.percentage = 100
+        self.add_functionality(func)
+
+    def toggle(self, name):
+        func = self._get_functionality(name)
+        func.enabled = not func.enabled
+        self.add_functionality(func)
