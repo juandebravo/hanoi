@@ -117,6 +117,8 @@ Currently there're two implemented BackEnds:
 
 - [RedisBackEnd](https://github.com/juandebravo/hanoi/blob/master/hanoi/backend.py#L125): useful for distributed environments, where you need to easily update functionalities, rules or users attached to a specific functionality.
 
+- [RedisHighPerfBackEnd](https://github.com/juandebravo/hanoi/blob/master/hanoi/backend.py#L264): useful for distributed environments and high performance. It uses SET to store users and reduce significantly the time to verify an user. Check and execute `benchmark.py` file for details.
+
 # TODO before BETA
 
 - [X] Finish unit testing Rollout class
