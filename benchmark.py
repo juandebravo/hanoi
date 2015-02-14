@@ -1,14 +1,14 @@
 """
-Utility to verify the performance of both RedisBackEnd and RedisHighPerfBackEnd.
+Utility to compare RedisBackEnd and RedisHighPerfBackEnd performance.
 
-Below the elaped time running the tests using:
+Below the elapsed time running the tests using:
 
 - Mac OS X 10.10
 - Redis 2.8.17, standalone mode, default configuration
 
     python benchmark.py
-        29.07
-        5.28
+        29.07  # (seconds) Using RedisBackEnd
+        5.28   # (seconds) Using RedisHighPerfBackEnd
 """
 
 import hanoi
