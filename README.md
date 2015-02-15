@@ -3,7 +3,7 @@
 
 [![Build Status](https://travis-ci.org/juandebravo/hanoi.svg?branch=master)](https://travis-ci.org/juandebravo/hanoi)
 
-Work in progress!! Alpha version.
+Beta version.
 
 Hanoi is a port of [rollout gem](https://github.com/FetLife/rollout) from [James Golick](https://github.com/jamesgolick) and [Eric Rafaloff](https://github.com/EricR).
 
@@ -128,5 +128,6 @@ Currently there're two implemented BackEnds:
 - [X] Document the different use cases and when to use both backends
 - [X] Integrate travis.ci
 - [X] Upload a beta version to pypi
-- [ ] Think about a cooler name :wink:
-- [ ] Write a blog post
+- [X] Think about a cooler name :wink:. We'll stay with **hanoi**
+- [X] [Write a blog post](http://www.juandebravo.com/2015/02/15/toggle-func-in-python/)
+
