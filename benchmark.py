@@ -1,5 +1,5 @@
 """
-Utility to compare RedisBackEnd and RedisHighPerfBackEnd performance.
+Utility to compare the different Backends performance.
 
 Below the elapsed time running the tests using:
 
@@ -7,8 +7,9 @@ Below the elapsed time running the tests using:
 - Redis 2.8.17, standalone mode, default configuration
 
     python benchmark.py
+        03.25  # (seconds) using MemoryBackEnd
         29.07  # (seconds) Using RedisBackEnd
-        5.28   # (seconds) Using RedisHighPerfBackEnd
+        05.28  # (seconds) Using RedisHighPerfBackEnd
 """
 
 import hanoi
@@ -16,6 +17,8 @@ import redis
 import time
 
 _redis = redis.Redis('localhost', 6379)
+
+rolloutM = hanoi.Rollout(hanoi.MemoryBackEnd())
 
 rollout = hanoi.Rollout(hanoi.RedisBackEnd(_redis))
 
@@ -27,7 +30,7 @@ USER = "USER-{0}"
 
 LOOP = 10000
 
-for client in (rollout, rolloutHP):
+for client in (rolloutM, rollout, rolloutHP):
 
     t0 = time.time()
 

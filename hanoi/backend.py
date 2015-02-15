@@ -349,7 +349,6 @@ class RedisHighPerfBackEnd(object):
         self.rules[name] = rule
 
     def set_percentage(self, name, percentage):
-        # Use a Transaction
         func = self._get_functionality(name)
         func.percentage = percentage
         self.add_functionality(func)
