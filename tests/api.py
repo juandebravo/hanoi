@@ -1,10 +1,10 @@
 # -*- encoding: utf-8 -*-
 
 import unittest
-from pyshould import should, all_of
+from pyshould import should, all_of, should_not
 
 from hanoi.api import Rollout, RolloutException
-from hanoi.backend import Feature, MemoryBackEnd, RedisBackEnd
+from hanoi.backend import Feature, MemoryBackEnd, RedisBackEnd, RedisHighPerfBackEnd
 
 
 class Foo(object):
@@ -85,14 +85,14 @@ class RolloutTestCase(unittest.TestCase):
         self.rollout.enable(self.FN)
         self.rollout.set_percentage(self.FN, 100)
         # Check in 100 different users
-        for i in xrange(0, 100):
+        for i in range(0, 100):
             self.rollout.is_enabled("foo", str(i)) | should.be_true
 
     def test_a_functionality_with_percentage_100_disabled(self):
         self.rollout.enable(self.FN)
         self.rollout.set_percentage(self.FN, 0)
         # Check in 100 different users
-        for i in xrange(0, 100):
+        for i in range(0, 100):
             self.rollout.is_enabled("foo", str(i)) | should.be_falsy
 
     def test_a_functionality_with_percentage_50_enabled(self):
@@ -106,7 +106,7 @@ class RolloutTestCase(unittest.TestCase):
     def test_a_functionality_with_percentage_50_disabled(self):
         self.rollout.disable(self.FN)
         self.rollout.set_percentage(self.FN, 50)
-        for x in xrange(1, 100):
+        for x in range(1, 100):
             u = Foo(str(x))
             self.rollout.register(self.FN, u)
             self.rollout.is_enabled(self.FN, u) | should.be_falsy
@@ -263,14 +263,14 @@ class RolloutWithRedisTestCase(unittest.TestCase):
         self.rollout.enable(self.FN)
         self.rollout.set_percentage(self.FN, 100)
         # Check in 100 different users
-        for i in xrange(0, 100):
+        for i in range(0, 100):
             self.rollout.is_enabled("foo", str(i)) | should.be_true
 
     def test_a_functionality_with_percentage_100_disabled(self):
         self.rollout.enable(self.FN)
         self.rollout.set_percentage(self.FN, 0)
         # Check in 100 different users
-        for i in xrange(0, 100):
+        for i in range(0, 100):
             self.rollout.is_enabled("foo", Foo(str(i))) | should.be_falsy
 
     def test_a_functionality_with_percentage_50_enabled(self):
@@ -286,7 +286,188 @@ class RolloutWithRedisTestCase(unittest.TestCase):
     def test_a_functionality_with_percentage_50_disabled(self):
         self.rollout.disable(self.FN)
         self.rollout.set_percentage(self.FN, 50)
-        for x in xrange(1, 100):
+        for x in range(1, 100):
+            u = Foo(str(x))
+            self.rollout.register(self.FN, u)
+            self.rollout.is_enabled(self.FN, u) | should.be_falsy
+
+    def test_is_enabled_to_a_register_user(self):
+        self.rollout.add_func('bar')
+        u = Foo("bazz")
+        self.rollout.register(self.FN, u)
+        self.rollout.is_enabled(self.FN, u) | should.be_truthy
+
+    def test_is_enabled_to_a_non_register_user(self):
+        self.rollout.add_func('bar')
+        u = "bazz"
+        self.rollout.register(self.FN, Foo(u))
+        self.rollout.is_enabled(self.FN, Foo(u+u)) | should.be_falsy
+
+    def test_add_a_user_to_a_disabled_functionality(self):
+        self.rollout.disable(self.FN)
+        self.rollout.is_enabled(self.FN) | should.be_falsy
+        self.rollout.is_enabled(self.FN, 'foo') | should.be_falsy
+
+    def test_set_a_rule_to_a_functionality_user_matches(self):
+        import re
+        self.rollout.register(self.FN, re.compile("00$"))
+        self.rollout.is_enabled(self.FN, Foo('0000000')) | should.be_truthy
+
+    def test_set_a_rule_to_a_functionality_user_does_not_match(self):
+        import re
+        self.rollout.register(self.FN, re.compile("00$"))
+        self.rollout.is_enabled(self.FN, Foo("0000010")) | should.be_falsy
+
+    def test_set_a_rule_user_does_not_match_but_is_whitelisted(self):
+        import re
+        self.rollout.register(self.FN, "0000010")
+        self.rollout.register(self.FN, re.compile("00$"))
+        self.rollout.is_enabled(self.FN, Foo("0000010")) | should.be_truthy
+
+    def test_set_a_rule_overrides_previous_rule(self):
+        import re
+        self.rollout.register(self.FN, re.compile("00$"))
+        self.rollout.is_enabled(self.FN, Foo("0000010")) | should.be_falsy
+        self.rollout.register(self.FN, re.compile("10$"))
+        self.rollout.is_enabled(self.FN, Foo("0000010")) | should.be_truthy
+
+    def test_decorator_enabled_decorator_when_feature_enabled(self):
+        @self.rollout.enabled(self.FN)
+        def foo(name):
+            return name
+
+        foo('bazz') | should.eql('bazz')
+
+    def test_decorator_enabled_decorator_when_feature_not_exist(self):
+        @self.rollout.enabled('bar')
+        def foo(name):
+            return name
+
+        with should.throw(RolloutException):
+            foo('bazz')
+
+    def test_decorator_enabled_decorator_when_feature_disabled(self):
+        @self.rollout.enabled(self.FN)
+        def foo(name):
+            return name
+
+        self.rollout.disable(self.FN)
+        with should.throw(RolloutException):
+            foo('bazz')
+
+    def test_decorator_check_with_current_id(self):
+        @self.rollout.check(self.FN)
+        def foo(name):
+            return name
+
+        self.rollout.set_current_id(Foo('bar'))
+        self.rollout.register(self.FN, Foo('bar'))
+        foo('bazz') | should.eql('bazz')
+
+    def test_decorator_check_with_argument(self):
+        @self.rollout.check(self.FN, 1)
+        def foo(name):
+            return name.id
+
+        self.rollout.set_current_id('foo')
+        self.rollout.register(self.FN, 'bar')
+        foo(Foo('bar')) | should.eql('bar')
+
+
+class RolloutWithRedisHighPerfTestCase(unittest.TestCase):
+
+    FN = 'foo'
+
+    def _get_basic_rollout(self, fn):
+        rollout = Rollout(RedisHighPerfBackEnd())
+        rollout.backend._redis.flushdb()
+        rollout.add_func(fn, 'id')
+        return rollout
+
+    def setUp(self):
+        self.rollout = self._get_basic_rollout(self.FN)
+
+    def tearDown(self):
+        self.rollout = None
+
+    def test_backend_should_not_be_none(self):
+        rollout = Rollout(None)
+        with should.throw(TypeError):
+            rollout.backend
+
+    def test_register_a_functionality(self):
+        self.rollout.backend.get_functionality(self.FN) | should_not.be(None)
+
+    def test_register_two_functionalities(self):
+        self.rollout.add_func('bar', 'id', percentage=0)
+        for fn in [self.FN, 'bar']:
+            self.rollout.backend.get_functionality(fn) | should_not.be(None)
+
+    def test_overrides_a_functionality_with_same_name(self):
+        self.rollout.add_func(self.FN, 'id2')
+        fn = self.rollout.backend.get_functionality(self.FN)
+        fn.field | should.eql('id2')
+
+    def test_enable_a_functionality(self):
+        self.rollout.enable(self.FN)
+        self.rollout.is_enabled(self.FN) | should.be_truthy
+
+    def test_disable_a_functionality(self):
+        self.rollout.disable(self.FN)
+        self.rollout.is_enabled(self.FN) | should.be_falsy
+
+    def test_toggle_a_functionality(self):
+        self.rollout.is_enabled(self.FN) | should.be_truthy
+        self.rollout.toggle(self.FN)
+        self.rollout.is_enabled(self.FN) | should.be_falsy
+        self.rollout.toggle(self.FN)
+        self.rollout.is_enabled(self.FN) | should.be_truthy
+
+    def test_set_percentage_to_100(self):
+        self.rollout.set_percentage(self.FN, 100)
+        self.rollout.is_enabled("foo") | should.be_true
+
+    def test_set_percentage_to_0_func_is_still_enabled(self):
+        self.rollout.set_percentage(self.FN, 0)
+        self.rollout.is_enabled("foo") | should.be_truthy
+        self.rollout.is_enabled("foo", Foo("bar")) | should.be_falsy
+
+    def test_set_percentage_to_101(self):
+        with should.throw(AttributeError):
+            self.rollout.set_percentage(self.FN, 101)
+
+    def test_set_percentage_to_negative(self):
+        with should.throw(AttributeError):
+            self.rollout.set_percentage(self.FN, -1)
+
+    def test_a_functionality_with_percentage_100_enabled(self):
+        self.rollout.enable(self.FN)
+        self.rollout.set_percentage(self.FN, 100)
+        # Check in 100 different users
+        for i in range(0, 100):
+            self.rollout.is_enabled("foo", str(i)) | should.be_true
+
+    def test_a_functionality_with_percentage_100_disabled(self):
+        self.rollout.enable(self.FN)
+        self.rollout.set_percentage(self.FN, 0)
+        # Check in 100 different users
+        for i in range(0, 100):
+            self.rollout.is_enabled("foo", Foo(str(i))) | should.be_falsy
+
+    def test_a_functionality_with_percentage_50_enabled(self):
+        self.rollout.enable(self.FN)
+        self.rollout.set_percentage(self.FN, 50)
+        user = Foo("1")
+        self.rollout.register(self.FN, user)
+        self.rollout.is_enabled(self.FN, user) | should.be_truthy
+        u = Foo("2")
+        self.rollout.register(self.FN, u)
+        self.rollout.is_enabled(self.FN, u) | should.be_truthy
+
+    def test_a_functionality_with_percentage_50_disabled(self):
+        self.rollout.disable(self.FN)
+        self.rollout.set_percentage(self.FN, 50)
+        for x in range(1, 100):
             u = Foo(str(x))
             self.rollout.register(self.FN, u)
             self.rollout.is_enabled(self.FN, u) | should.be_falsy

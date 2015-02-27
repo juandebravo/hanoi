@@ -12,8 +12,13 @@ class Feature(object):
     __slots__ = ['name', 'field', 'percentage', 'enabled']
 
     def __init__(self, name, field=None, percentage=100):
-        if not isinstance(name, basestring):
-            raise AttributeError("Feature name should be a string")
+        try:
+            if not isinstance(name, basestring):
+                raise AttributeError("Feature name should be a string")
+        except:
+            # python3
+            if not isinstance(name, str):
+                raise AttributeError("Feature name should be a string")
 
         self.name = name
         self.field = field
@@ -70,13 +75,13 @@ class MemoryBackEnd(object):
         self.rules = {}
 
     def get_functionalities(self):
-        return self.funcs.keys()
+        return list(self.funcs)
 
     def add_functionality(self, fn):
         self.funcs[fn.name] = fn
 
     def get_functionality(self, name):
-        return self.funcs[name]
+        return self.funcs.get(name)
 
     def _add(self, name, item):
         self.reg[name].append(item)
@@ -107,7 +112,11 @@ class MemoryBackEnd(object):
         flag = flag or (name in self.reg and item in self.reg[name])
         flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         if not flag and self.funcs[name].percentage > 0:
-            flag = zlib.crc32(self.funcs[name].get_item_id(item)) % 100 >= self.funcs[name].percentage
+            try:  # python 3
+                val = bytes(self.funcs[name].get_item_id(item), 'utf-8')
+            except:
+                val = self.funcs[name].get_item_id(item)
+            flag = zlib.crc32(val) % 100 >= self.funcs[name].percentage
         return flag
 
     def disable(self, name):
@@ -178,7 +187,7 @@ class RedisBackEnd(object):
 
     def get_functionalities(self):
         func = self._redis.keys(self._get_func_key('*'))  # HACK: get every functionality
-        return map(lambda x: x[self._prefix_len:], func)
+        return [x[self._prefix_len:].decode('utf-8') for x in func]
 
     def add_functionality(self, fn, users=None):
         data = ",".join(users) if users is not None else ''
@@ -190,7 +199,7 @@ class RedisBackEnd(object):
     def _get_functionality(self, name):
         redis_value = self._redis.get(self._get_func_key(name))
         if redis_value:
-            return self.unserialize_feature(name, redis_value)
+            return self.unserialize_feature(name, redis_value.decode('utf-8'))
         else:
             return None, []
 
@@ -240,6 +249,10 @@ class RedisBackEnd(object):
         flag = flag or (functionality.get_item_id(item) in users)
         flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         if not flag and functionality.percentage > 0:
+            try:  # python 3
+                item = bytes(item, 'utf-8')
+            except:
+                pass
             flag = zlib.crc32(item) % 100 >= functionality.percentage
         return flag
 
@@ -328,7 +341,7 @@ class RedisHighPerfBackEnd(object):
     def _get_functionality(self, name):
         redis_value = self._redis.get(self._get_func_key(name))
         if redis_value:
-            return self.unserialize_feature(name, redis_value)
+            return self.unserialize_feature(name, redis_value.decode('utf-8'))
         else:
             return None
 
@@ -373,6 +386,10 @@ class RedisHighPerfBackEnd(object):
         flag = flag or self._allowed_user(functionality, item)
         flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         if not flag and functionality.percentage > 0:
+            try:  # python 3
+                item = bytes(item, 'utf-8')
+            except:
+                pass
             flag = zlib.crc32(item) % 100 >= functionality.percentage
         return flag
 

@@ -65,7 +65,7 @@ class Rollout(object):
         self.backend.enable(name)
 
     def _is_func_defined(self, name):
-        return name in self.backend.get_functionalities()
+        return self.backend.get_functionality(name) is not None
 
     def _callable(self, fn, func):
         def wrapper(*args, **kwargs):
