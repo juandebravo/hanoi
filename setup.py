@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='hanoi',
     description='Toggle on/off features. Rollout python port',
-    version='{VERSION}',
+    version='0.0.3',
     url='https://github.com/juandebravo/hanoi',
     author='Juan de Bravo',
     author_email='juandebravo@gmail.com',
