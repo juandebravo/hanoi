@@ -1,6 +1,8 @@
 
 # Hanoi
 
+[![Version](https://pypip.in/v/hanoi/badge.png)](https://crate.io/packages/hanoi)
+[![Downloads](https://pypip.in/d/hanoi/badge.png)](https://crate.io/packages/hanoi)
 [![Build Status](https://travis-ci.org/juandebravo/hanoi.svg?branch=master)](https://travis-ci.org/juandebravo/hanoi)
 
 Beta version.
