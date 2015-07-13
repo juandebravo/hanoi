@@ -8,7 +8,7 @@ setup(
     install_requires=['redis'],
     name='hanoi',
     packages=find_packages(),
-    tests_require=['nose', 'pyshould', 'redis-py'],
+    tests_require=['nose', 'pyshould', 'redis'],
     test_suite='nose.collector',
     url='https://github.com/juandebravo/hanoi',
     version='0.0.3',

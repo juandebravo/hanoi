@@ -41,9 +41,7 @@ class RolloutTestCase(unittest.TestCase):
     def test_register_two_functionalities(self):
         self.rollout.add_func('bar', lambda x: x.id, percentage=0)
         self.rollout.backend.get_functionalities() | should.have_len(2)
-        self.rollout.backend.get_functionalities() | should.eql([
-            self.FN, 'bar'
-        ])
+        all_of([self.FN, 'bar']) | should.be_in(self.rollout.backend.get_functionalities())
 
     def test_overrides_a_functionality_with_same_name(self):
         self.rollout.add_func(self.FN, lambda x: x.id)
