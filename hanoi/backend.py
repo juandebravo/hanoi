@@ -1,17 +1,19 @@
 import zlib
+from abc import ABCMeta
 
 try:
     from redis import Redis
 except ImportError:
-    # Redis not available
+    # Redis not available.
+    # We expect our user to use only MemoryBackend
     pass
 
 
 class Feature(object):
 
-    __slots__ = ['name', 'field', 'percentage', 'enabled']
+    __slots__ = ['name', 'field', 'percentage', 'enabled', 'variants']
 
-    def __init__(self, name, field=None, percentage=100):
+    def __init__(self, name, field=None, percentage=100, variants=None):
         try:
             if not isinstance(name, basestring):
                 raise AttributeError("Feature name should be a string")
@@ -24,6 +26,7 @@ class Feature(object):
         self.field = field
         self.percentage = self._validate_percentage(percentage)
         self.enabled = True
+        self.variants = variants
 
     def _validate_percentage(self, percentage):
         try:
@@ -130,8 +133,47 @@ class MemoryBackEnd(object):
     def toggle(self, name):
         self.funcs[name].enabled = not self.funcs[name].enabled
 
+    def variant(self, name, item):
+        if not self.is_enabled(name, item):
+            return None
+        f = self.get_functionality(name)
+        try:  # python 3
+            item = bytes(item, "utf-8")
+        except:
+            pass
 
-class RedisBackEnd(object):
+        return f.variants[zlib.crc32(item) % len(f.variants)]
+
+
+class RedisAbstractBackEnd(object):
+    """
+    Having two classes implementing a Hanoi BackEnd in REDIS means duplicating
+    a lot of code. This class is defined as abstract for the sake of clarity
+    that should not be directly used but by means of a subclass.
+    """
+    __metaclass__ = ABCMeta
+
+    PREFIX = "rollout:{0}"
+
+    def __init__(self, obj=None):
+        if obj is None:
+            self._redis = Redis()
+        elif isinstance(obj, (list, tuple)):
+            host, port = obj[0], obj[1]
+            db = obj[2] if len(obj) >= 3 else 0
+            self._redis = Redis(host=host, port=port, db=db)
+        else:
+            self._redis = obj
+
+        self._prefix_len = len(self.PREFIX.format(''))
+        # TODO: rules should be stored in REDIS as well
+        self.rules = {}
+
+    def _get_func_key(self, name):
+        return self.PREFIX.format(name)
+
+
+class RedisBackEnd(RedisAbstractBackEnd):
     """
     Implements a BackEnd using REDIS as system storage.
     - It creates a new key per functionality that should be stored.
@@ -152,48 +194,41 @@ class RedisBackEnd(object):
 
     """
 
-    PREFIX = "rollout:{0}"
-
-    def __init__(self, obj=None):
-        if obj is None:
-            self._redis = Redis()
-        elif isinstance(obj, (list, tuple)):
-            host, port = obj[0], obj[1]
-            db = obj[2] if len(obj) >= 3 else 0
-            self._redis = Redis(host=host, port=port, db=db)
-        else:
-            self._redis = obj
-
-        self._prefix_len = len(self.PREFIX.format(''))
-        self.rules = {}
-
     @classmethod
     def unserialize_feature(cls, name, value):
         if value:
-            enabled, percentage, field, users = value.split("|")
+            enabled, percentage, field, users, variants = value.split("|")
+            variants = variants.split(',') or None
         else:
             percentage = 100
-            users = None
-            field = None
+            users = field = variants = None
             enabled = '1'
 
-        f = Feature(name, field, percentage)
+        f = Feature(name, field, percentage, variants)
         f.enabled = enabled == '1'
 
         return f, users.split(",") if users else []
-
-    def _get_func_key(self, name):
-        return self.PREFIX.format(name)
 
     def get_functionalities(self):
         func = self._redis.keys(self._get_func_key('*'))  # HACK: get every functionality
         return [x[self._prefix_len:].decode('utf-8') for x in func]
 
     def add_functionality(self, fn, users=None):
-        data = ",".join(users) if users is not None else ''
+        fn_info = ['1' if fn.enabled else '0',
+            str(fn.percentage),
+            fn.field or '',
+            ','.join(users) if users is not None else ''
+        ]
+
+        if fn.variants is not None:
+            var_info = ','.join(fn.variants)
+            fn_info.append(var_info)
+        else:
+            fn_info.append('')
+
         self._redis.set(
             self._get_func_key(fn.name),
-            "|".join(['1' if fn.enabled else '0', str(fn.percentage), fn.field or '', data])
+            "|".join(fn_info)
         )
 
     def _get_functionality(self, name):
@@ -273,8 +308,19 @@ class RedisBackEnd(object):
         func.enabled = not func.enabled
         self.add_functionality(func, users)
 
+    def variant(self, name, item):
+        if not self.is_enabled(name, item):
+            return None
+        f, _ = self._get_functionality(name)
+        try:  # python 3
+            item = bytes(item, "utf-8")
+        except:
+            pass
 
-class RedisHighPerfBackEnd(object):
+        return f.variants[zlib.crc32(item) % len(f.variants)]
+
+
+class RedisHighPerfBackEnd(RedisAbstractBackEnd):
     """
     Implements a BackEnd using REDIS as system storage.
     Per each functionality to be tackled:
@@ -288,55 +334,50 @@ class RedisHighPerfBackEnd(object):
 
     """
 
-    PREFIX = "rollout:{0}"
-
     SET_PREFIX = "rollout:users:{0}"
 
-    def __init__(self, obj=None):
-        if obj is None:
-            self._redis = Redis()
-        elif isinstance(obj, (list, tuple)):
-            host, port = obj[0], obj[1]
-            db = obj[2] if len(obj) >= 3 else 0
-            self._redis = Redis(host=host, port=port, db=db)
-        else:
-            self._redis = obj
-
-        self._prefix_len = len(self.PREFIX.format(''))
-        self.rules = {}
 
     @classmethod
     def unserialize_feature(cls, name, value):
+        """
+        Destructure Feature information from the serialized format
+        """
         if value:
-            enabled, percentage, field = value.split("|")
+            enabled, percentage, field, variants = value.split("|")
+            variants = variants.split(',') or None
         else:
             enabled = '1'
             percentage = 100
-            field = None
+            field = variants = None
 
-        f = Feature(name, field, percentage)
+        f = Feature(name, field, percentage, variants)
         f.enabled = enabled == '1'
 
         return f
-
-    def _get_func_key(self, name):
-        return self.PREFIX.format(name)
 
     def get_functionalities(self):
         raise NotImplementedError('get_functionalities unavailable in RedisHighPerfBackEnd')
 
     def add_functionality(self, fn, users=None):
+        fn_info = ['1' if fn.enabled else '0', str(fn.percentage), fn.field or '']
+
+        if fn.variants is not None:
+            # Every variant should include a name and (optionally) a percentage
+            # Missing percentage dictates same weight for every variant
+            # TODO: define percentages. Currently they're by default equally distributed
+            #default_weight = str(100 / len(fn.variants))
+            #var_info = ','.join([v + '-' + default_weight for v in fn.variants])
+            var_info = ','.join(fn.variants)
+            fn_info.append(var_info)
+        else:
+            fn_info.append('')
+
         self._redis.set(
             self._get_func_key(fn.name),
-            "|".join(['1' if fn.enabled else '0', str(fn.percentage), fn.field or ''])
+            "|".join(fn_info)
         )
         if users:
-            # TODO: ensure we don't need a loop
-            for u in users:
-                self._redis.sadd(
-                    self.SET_PREFIX.format(fn.name),
-                    u
-                )
+            self._redis.sadd(self.SET_PREFIX.format(fn.name), *users)
 
     def _get_functionality(self, name):
         redis_value = self._redis.get(self._get_func_key(name))
@@ -415,3 +456,14 @@ class RedisHighPerfBackEnd(object):
         func = self._get_functionality(name)
         func.enabled = not func.enabled
         self.add_functionality(func)
+
+    def variant(self, name, item):
+        if not self.is_enabled(name, item):
+            return None
+        f = self._get_functionality(name)
+        try:  # python 3
+            item = bytes(item, "utf-8")
+        except:
+            pass
+
+        return f.variants[zlib.crc32(item) % len(f.variants)]
