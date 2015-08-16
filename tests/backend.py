@@ -230,7 +230,7 @@ class RedisHighPerfBackEndTestCase(unittest.TestCase):
 
     def test_add_a_functionality_with_a_hundred_users(self):
         fn = "FOO"
-        users = ["bar" + str(i) for i in xrange(100)]
+        users = ["bar" + str(i) for i in range(100)]
 
         self.backend.add_functionality(Feature(fn, None, 0), users)
 
