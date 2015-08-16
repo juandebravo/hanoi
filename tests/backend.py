@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 
 import unittest
-from pyshould import should
+from pyshould import should, all_of
 import re
 
 from hanoi.backend import MemoryBackEnd, RedisBackEnd, RedisHighPerfBackEnd, Feature
@@ -10,6 +10,25 @@ from hanoi.backend import MemoryBackEnd, RedisBackEnd, RedisHighPerfBackEnd, Fea
 class MemoryBackEndTestCase(unittest.TestCase):
     def setUp(self):
         self.backend = MemoryBackEnd()
+
+    def test_retrieve_a_variant(self):
+        fn = "FOO"
+        _variants = ["foo", "bar", "bazz"]
+        self.backend.add_functionality(Feature(fn, variants=_variants))
+        f = self.backend.get_functionality(fn)
+        f.name | should.eql(fn)
+        f.percentage | should.eql(100)
+        self.backend.variant(fn, 'juan') | should.be_in(f.variants)
+        self.backend.variant(fn, 'juan2') | should.be_in(f.variants)
+
+    def test_retrieve_a_variant_is_none_if_disabled(self):
+        fn = "FOO"
+        _variants = ["foo", "bar", "bazz"]
+        self.backend.add_functionality(Feature(fn, percentage=0, variants=_variants))
+        f = self.backend.get_functionality(fn)
+        f.name | should.eql(fn)
+        self.backend.variant(fn, 'juan') | should.be_none()
+        self.backend.variant(fn, 'juan2') | should.be_none()
 
 
 class RedisBackEndTestCase(unittest.TestCase):
@@ -160,6 +179,25 @@ class RedisBackEndTestCase(unittest.TestCase):
         self.backend.toggle(fn)
         self.backend.is_enabled(fn) | should.be_truthy()
 
+    def test_retrieve_a_variant(self):
+        fn = "FOO"
+        _variants = ["foo", "bar", "bazz"]
+        self.backend.add_functionality(Feature(fn, variants=_variants))
+        f, _ = self.backend._get_functionality(fn)
+        f.name | should.eql(fn)
+        f.percentage | should.eql(100)
+        self.backend.variant(fn, 'juan') | should.be_in(f.variants)
+        self.backend.variant(fn, 'juan2') | should.be_in(f.variants)
+
+    def test_retrieve_a_variant_is_none_if_disabled(self):
+        fn = "FOO"
+        _variants = ["foo", "bar", "bazz"]
+        self.backend.add_functionality(Feature(fn, percentage=0, variants=_variants))
+        f, _ = self.backend._get_functionality(fn)
+        f.name | should.eql(fn)
+        self.backend.variant(fn, 'juan') | should.be_none()
+        self.backend.variant(fn, 'juan2') | should.be_none()
+
 
 class RedisHighPerfBackEndTestCase(unittest.TestCase):
 
@@ -185,6 +223,22 @@ class RedisHighPerfBackEndTestCase(unittest.TestCase):
         f.name | should.eql(fn)
         f.percentage | should.eql(50)
 
+    def test_add_a_functionality_with_one_user(self):
+        fn = "FOO"
+        self.backend.add_functionality(Feature(fn, None, 0), ["bar"])
+        self.backend.is_enabled(fn, "bar") | should.be_true()
+
+    def test_add_a_functionality_with_a_hundred_users(self):
+        fn = "FOO"
+        users = ["bar" + str(i) for i in range(100)]
+
+        self.backend.add_functionality(Feature(fn, None, 0), users)
+
+        for u in users:
+            self.backend.is_enabled(fn, u) | should.be_true()
+
+        self.backend.is_enabled(fn, "bar100") | should.be_false()
+
     def test_add_a_disabled_functionality_with_percentage(self):
         fn = "FOO"
         func = Feature(fn, None, 50)
@@ -196,6 +250,15 @@ class RedisHighPerfBackEndTestCase(unittest.TestCase):
         f.enabled | should.be_falsy()
         self.backend._redis.smembers("rollout:users:FOO") | should.be_empty()
 
+    def test_add_a_functionality_with_variants(self):
+        fn = "FOO"
+        _variants = ["foo", "bar", "bazz"]
+        self.backend.add_functionality(Feature(fn, variants=_variants))
+        f = self.backend._get_functionality(fn)
+        f.name | should.eql(fn)
+        f.percentage | should.eql(100)
+        all_of(["foo", "bar", "bazz"]) | should.be_in(f.variants)
+
     def test_add_an_user(self):
         fn = "FOO"
         self.backend.add_functionality(Feature(fn, percentage=0))
@@ -205,7 +268,7 @@ class RedisHighPerfBackEndTestCase(unittest.TestCase):
         self.backend.add(fn, "bazz")
         self.backend.is_enabled("FOO", "bazz") | should.be_truthy
 
-    def test_add_existing_an_user(self):
+    def test_add_an_existing_user(self):
         fn = "FOO"
         self.backend.add_functionality(Feature(fn))
         self.backend.add(fn, "bar")
@@ -296,3 +359,22 @@ class RedisHighPerfBackEndTestCase(unittest.TestCase):
         self.backend.is_enabled(fn) | should.be_falsy()
         self.backend.toggle(fn)
         self.backend.is_enabled(fn) | should.be_truthy()
+
+    def test_retrieve_a_variant(self):
+        fn = "FOO"
+        _variants = ["foo", "bar", "bazz"]
+        self.backend.add_functionality(Feature(fn, variants=_variants))
+        f = self.backend._get_functionality(fn)
+        f.name | should.eql(fn)
+        f.percentage | should.eql(100)
+        self.backend.variant(fn, 'juan') | should.be_in(f.variants)
+        self.backend.variant(fn, 'juan2') | should.be_in(f.variants)
+
+    def test_retrieve_a_variant_is_none_if_disabled(self):
+        fn = "FOO"
+        _variants = ["foo", "bar", "bazz"]
+        self.backend.add_functionality(Feature(fn, percentage=0, variants=_variants))
+        f = self.backend._get_functionality(fn)
+        f.name | should.eql(fn)
+        self.backend.variant(fn, 'juan') | should.be_none()
+        self.backend.variant(fn, 'juan2') | should.be_none()

@@ -17,27 +17,38 @@ class Rollout(object):
             raise TypeError("BackEnd should be a valid BackEnd object")
         return self._backend
 
-    def add_func(self, name, check=None, percentage=0):
-        fn = Feature(name, check, percentage)
+    def add_func(self, name, check=None, percentage=0, variants=None):
+        """
+        Creates in backend a new functionality and enables it for a percentage of users
+        @param name: functionality name
+        @param check: object field to be used for checking if the functionality
+                      is enabled (i.e. `id` for using the property `id` in an `User` instance)
+        @param percentage: percentage the functionality should be enabled to
+        @param variants: set of valid variants for the functionality
+        """
+        # TODO: allow getting a `Feature` instance
+        fn = Feature(name, check, percentage, variants)
         self.backend.add_functionality(fn)
 
     def is_enabled(self, name, item=None):
         return self.backend.is_enabled(name, item)
 
     def register(self, name, item):
-        if type(item) == _regex_type:
-            self.backend.set_rule(name, item)
-        else:
-            self.backend.add(name, item)
+        """
+        Enables a functionality for either a
+        regular expression (set of objects) or a specific object
+        """
+        fn = self.backend.set_rule if type(item) == _regex_type else self.backend.add
+        fn(name, item)
 
     def set_percentage(self, name, percentage):
         self.backend.set_percentage(name, percentage)
 
     def set_current_id(self, name):
         """
-        Map a specifc user to the instance, so there's no need to
-        pass as parameter in every check. Don't use this approach if you need
-        a thread safe environment.
+        Map a specific user to the instance, so there's no need to
+        pass it as parameter in every check.
+        Don't use this approach if you need a thread safe environment.
         """
         self._item = name
 
@@ -54,6 +65,9 @@ class Rollout(object):
                     raise RolloutException("Feature <%s> is not enabled" % name)
             return wrapper
         return real_decorator
+
+    def variant(self, name, item):
+        return self.backend.variant(name, item)
 
     def toggle(self, name):
         self.backend.toggle(name)
@@ -74,7 +88,8 @@ class Rollout(object):
         return wrapper
 
     def check(self, func, index=None):
-        """ Decorator to check if a functionality is enabled
+        """
+        Decorator to check if a functionality is enabled
         for a specific user/item.
         @param func: functionality name to be checked
         @param index: argument to be used as user/item. If None, it will seek for the item
