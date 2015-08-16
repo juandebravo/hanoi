@@ -69,12 +69,9 @@ variant = rollout.variant('A', B)
 
 import re
 
-from redis import Redis
 import hanoi
 
-redis = Redis()
-
-rollout = hanoi.Rollout(redis)
+rollout = hanoi.Rollout(hanoi.RedisHighPerfBackEnd())
 
 rollout.add_func(
     'cdc_on',               # Functionality name (CDC on)
