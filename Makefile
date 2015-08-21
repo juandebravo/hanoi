@@ -10,12 +10,13 @@ endif
 	git add setup.py
 	git commit -m "Tagging version ${VERSION}"
 
-	#git tag ${VERSION}
-	#git push origin ${VERSION}
+	git tag ${VERSION}
+	git push origin ${VERSION}
 
 	# Package and upload to pypi
-	#python setup.py sdist register upload
+	python setup.py sdist register upload
 
+	# Bring new version to master
 	git checkout master
 	git merge --ff ${VERSION}-release
 	git push origin master
