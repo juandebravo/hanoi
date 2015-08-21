@@ -552,6 +552,13 @@ class RolloutWithRedisHighPerfTestCase(unittest.TestCase):
         self.rollout.register(self.FN, 'bar')
         foo(Foo('bar')) | should.eql('bar')
 
+    def test_create_feature_with_variants(self):
+        FN = 'bar'
+        _variants = ['BAR', 'BAZZ']
+        self.rollout.add_func(FN, variants=_variants)
+        self.rollout.set_percentage(FN, 100)
+        self.rollout.variant('bar', 'user') | should.be_in(_variants)
+
 
 class FeatureTestCase(unittest.TestCase):
 

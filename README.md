@@ -17,6 +17,8 @@ The idea behind it is to ease a simple way to enable/disable functionalities to 
 * Enable a functionality to a percentage of users via Cyclic Redundancy Check(user identifier) % 100.
 * Enable a functionality to a percentage of users via a predefined rule using a Reg Expr.
 * Enable a functionality to specific users.
+* Variants support (new in 0.0.4): inspired in [feature by Esty](https://github.com/etsy/feature) and [sixpack](https://github.com/seatgeek/sixpack), `hanoi` now supports variant for providing to users different
+options for an experiment.
 
 # Scenarios
 
@@ -49,6 +51,13 @@ def execute_a_logic():
 execute_a_logic()
 ```
 
+* Retrieving a valid variant for an experiment A for user B
+
+```python
+variant = rollout.variant('A', B)
+```
+
+
 # Examples of usage
 
 
@@ -60,16 +69,14 @@ execute_a_logic()
 
 import re
 
-from redis import Redis
 import hanoi
 
-redis = Redis()
-
-rollout = hanoi.Rollout(redis)
+rollout = hanoi.Rollout(hanoi.RedisHighPerfBackEnd())
 
 rollout.add_func(
-    'cdc_on',        # Functionality name (CDC on)
-    80               # Percentage for toggle ON
+    'cdc_on',               # Functionality name (CDC on)
+    percentage=80,          # Percentage for toggle ON
+    variants=('foo', 'bar') # Valid variants in case of toggle ON
 )
 
 rollout.register('cdc_on', '447568110000')  # Register a specific user
@@ -100,20 +107,22 @@ execute_cdc_logic()  # Based on the rules defined in bootstrap.py, the decorator
 
 # Check if it's enabled `cdc_on` to the user `44488`
 # Based on the rules defined in bootstrap.py, it will return False
-print rollout.is_enabled('cdc_on', '44488')
+print roll.is_enabled('cdc_on', '44488')
 
 
-@rollout.check('cdc_on', 2)  # Check if it's enabled `cdc_on` to the second parameter
+@roll.check('cdc_on', 2)  # Check if it's enabled `cdc_on` to the second parameter
 def execute_again_cdc_logic(parameter, user):
     return "I'm in"
 
 print execute_again_cdc_logic('foo', '443301')  # Based on the rules defined in bootstrap.py, the decorator will allow the function execution, as 443301 matches the reg expr.
 
+print roll.variant('cdc_on', '443301')  # Get a valid variant for user 443301.
+
 ```
 
 # BackEnds
 
-Currently there're two implemented BackEnds:
+Currently there're three implemented BackEnds:
 
 - [MemoryBackEnd](https://github.com/juandebravo/hanoi/blob/master/hanoi/backend.py#L65): useful for development or where you have predefined rules and don't need to share information between different processes.
 
