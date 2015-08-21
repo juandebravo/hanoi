@@ -11,6 +11,6 @@ setup(
     tests_require=['nose', 'pyshould', 'redis'],
     test_suite='nose.collector',
     url='https://github.com/juandebravo/hanoi',
-    version='0.0.3',
+    version='0.0.4',
     zip_safe=False,
 )
