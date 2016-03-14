@@ -4,7 +4,7 @@ import unittest
 from pyshould import should, all_of, should_not
 
 from hanoi.api import Rollout, RolloutException
-from hanoi.backend import Feature, MemoryBackEnd, RedisBackEnd, RedisHighPerfBackEnd
+from hanoi.backend import MemoryBackEnd, RedisBackEnd, RedisHighPerfBackEnd
 
 
 class Foo(object):
@@ -97,9 +97,9 @@ class RolloutTestCase(unittest.TestCase):
         self.rollout.enable(self.FN)
         self.rollout.set_percentage(self.FN, 50)
         user = Foo("1")
-        self.rollout.is_enabled(self.FN, user) | should.be_truthy
+        self.rollout.is_enabled(self.FN, user) | should.be_false()
         u = Foo("2")
-        self.rollout.is_enabled(self.FN, u) | should.be_falsy
+        self.rollout.is_enabled(self.FN, u) | should.be_true()
 
     def test_a_functionality_with_percentage_50_disabled(self):
         self.rollout.disable(self.FN)
@@ -199,7 +199,7 @@ class RolloutWithRedisTestCase(unittest.TestCase):
     def _get_basic_rollout(self, fn):
         rollout = Rollout(RedisBackEnd())
         rollout.backend._redis.flushdb()
-        rollout.add_func(fn, 'id')
+        rollout.add_func(fn)
         return rollout
 
     def setUp(self):
@@ -363,6 +363,7 @@ class RolloutWithRedisTestCase(unittest.TestCase):
         foo('bazz') | should.eql('bazz')
 
     def test_decorator_check_with_argument(self):
+
         @self.rollout.check(self.FN, 1)
         def foo(name):
             return name.id
@@ -379,7 +380,7 @@ class RolloutWithRedisHighPerfTestCase(unittest.TestCase):
     def _get_basic_rollout(self, fn):
         rollout = Rollout(RedisHighPerfBackEnd())
         rollout.backend._redis.flushdb()
-        rollout.add_func(fn, 'id')
+        rollout.add_func(fn)
         return rollout
 
     def setUp(self):
@@ -544,6 +545,7 @@ class RolloutWithRedisHighPerfTestCase(unittest.TestCase):
         foo('bazz') | should.eql('bazz')
 
     def test_decorator_check_with_argument(self):
+
         @self.rollout.check(self.FN, 1)
         def foo(name):
             return name.id
@@ -559,53 +561,3 @@ class RolloutWithRedisHighPerfTestCase(unittest.TestCase):
         self.rollout.set_percentage(FN, 100)
         self.rollout.variant('bar', 'user') | should.be_in(_variants)
 
-
-class FeatureTestCase(unittest.TestCase):
-
-    def test_is_enabled_by_default(self):
-        f = Feature('foo', lambda x: True, '100')
-        f.enabled | should.be_truthy
-
-    def test_name_is_valid_as_a_string(self):
-        f = Feature('foo', lambda x: True, '100')
-        f.name | should.eql('foo')
-
-    def test_name_is_valid_as_unicode(self):
-        f = Feature(u'üéê', lambda x: True, '100')
-        f.name | should.eql(u'üéê')
-
-    def test_name_cannot_be_None(self):
-        with should.throw(AttributeError):
-            Feature(None, lambda x: True, '100')
-
-    def test_name_should_be_a_string(self):
-        with should.throw(AttributeError):
-            Feature(1, lambda x: True, '100')
-
-    def test_name_is_read_only(self):
-        f = Feature("foo", lambda x: True, 20)
-
-        with should.throw(RuntimeError):
-            f.name = "bar"
-
-    def test_percentage_is_casted_to_integer_if_valid_number_as_string(self):
-        f = Feature('foo', lambda x: True, '100')
-        f.percentage | should.eql(100)
-
-    def test_percentage_should_be_a_number(self):
-        with should.throw(AttributeError):
-            Feature('foo', lambda x: True, 'bar')
-
-    def test_percentage_should_be_lower_than_100(self):
-        with should.throw(AttributeError):
-            Feature('foo', lambda x: True, 101)
-
-    def test_percentage_should_be_greater_than_0(self):
-        with should.throw(AttributeError):
-            Feature('foo', lambda x: True, -1)
-
-    def test_cannot_set_invalid_attributes(self):
-        f = Feature('foo', lambda x: True, 100)
-
-        with should.throw(AttributeError):
-            f.bar

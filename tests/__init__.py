@@ -1,11 +1,13 @@
 import unittest
 
 from .api import (
-    FeatureTestCase, RolloutTestCase,
-    RolloutWithRedisTestCase, RolloutWithRedisHighPerfTestCase
+    RolloutTestCase, RolloutWithRedisTestCase, RolloutWithRedisHighPerfTestCase
 )
 
-from .backend import RedisBackEndTestCase, RedisHighPerfBackEndTestCase, MemoryBackEndTestCase
+from .backend import (
+    FeatureTestCase,
+    RedisBackEndTestCase, RedisHighPerfBackEndTestCase, MemoryBackEndTestCase
+)
 
 
 def all_tests():

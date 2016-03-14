@@ -13,10 +13,10 @@ The idea behind it is to ease a simple way to enable/disable functionalities to 
 
 # Use cases
 
-* Enable a functionality globally (every user).
+* Enable a functionality globally (for every user using the system).
 * Enable a functionality to a percentage of users via Cyclic Redundancy Check(user identifier) % 100.
-* Enable a functionality to a percentage of users via a predefined rule using a Reg Expr.
-* Enable a functionality to specific users.
+* Enable a functionality to a percentage of users via a predefined rule using a Regular Expression.
+* Enable a functionality to specific user identifiers.
 * Variants support (new in 0.0.4): inspired in [feature by Esty](https://github.com/etsy/feature) and [sixpack](https://github.com/seatgeek/sixpack), `hanoi` now supports variant for providing to users different
 options for an experiment.
 
@@ -103,20 +103,28 @@ roll.set_current_id('444401')
 def execute_cdc_logic():
     pass
 
-execute_cdc_logic()  # Based on the rules defined in bootstrap.py, the decorator will allow the function execution, as zlib.crc32('444401') % 100 = 89, and the predefined percentage is 80
+# Based on the rules defined in bootstrap.py,
+# the decorator will not allow the function execution,
+# as zlib.crc32('444401') % 100 = 89, and the predefined percentage is 80
+execute_cdc_logic()
+
 
 # Check if it's enabled `cdc_on` to the user `44488`
 # Based on the rules defined in bootstrap.py, it will return False
 print roll.is_enabled('cdc_on', '44488')
 
 
-@roll.check('cdc_on', 2)  # Check if it's enabled `cdc_on` to the second parameter
+# Check if it's enabled `cdc_on` to the second parameter
+@roll.check('cdc_on', 2)
 def execute_again_cdc_logic(parameter, user):
     return "I'm in"
 
-print execute_again_cdc_logic('foo', '443301')  # Based on the rules defined in bootstrap.py, the decorator will allow the function execution, as 443301 matches the reg expr.
+# Based on the rules defined in bootstrap.py,
+# the decorator will allow the function execution, as 443301 matches the reg expr.
+print execute_again_cdc_logic('foo', '443301')
 
-print roll.variant('cdc_on', '443301')  # Get a valid variant for user 443301.
+# Get a valid variant for user `443301`
+print roll.variant('cdc_on', '443301')
 
 ```
 

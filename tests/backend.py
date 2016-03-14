@@ -7,6 +7,89 @@ import re
 from hanoi.backend import MemoryBackEnd, RedisBackEnd, RedisHighPerfBackEnd, Feature
 
 
+class FeatureTestCase(unittest.TestCase):
+
+    def test_is_enabled_by_default(self):
+        f = Feature('foo', lambda x: True, '100')
+        f.enabled | should.be_truthy
+
+    def test_name_is_valid_as_a_string(self):
+        f = Feature('foo', lambda x: True, '100')
+        f.name | should.eql('foo')
+
+    def test_name_is_valid_as_unicode(self):
+        f = Feature(u'üéê', lambda x: True, '100')
+        f.name | should.eql(u'üéê')
+
+    def test_name_cannot_be_None(self):
+        with should.throw(AttributeError):
+            Feature(None, lambda x: True, '100')
+
+    def test_name_should_be_a_string(self):
+        with should.throw(AttributeError):
+            Feature(1, lambda x: True, '100')
+
+    def test_name_is_read_only(self):
+        f = Feature("foo", lambda x: True, 20)
+
+        with should.throw(RuntimeError):
+            f.name = "bar"
+
+    def test_field_can_be_none(self):
+        f = Feature('foo')
+        f.get_item_id('bar') | should.eql('bar')
+
+    def test_get_item_id_casts_to_string(self):
+        f = Feature('foo')
+
+        class Foo(object):
+            def __str__(self):
+                return 'bar'
+
+        f.get_item_id(Foo()) | should.eql('bar')
+
+    def test_get_item_id_calls_the_field_if_callable(self):
+        f = Feature('foo', 'bar')
+
+        class Foo(object):
+            def bar(self):
+                return 'bazz'
+
+        f.get_item_id(Foo()) | should.eql('bazz')
+
+    def test_get_item_id_returns_the_field_if_not_callable(self):
+        f = Feature('foo', 'bar')
+
+        class Foo(object):
+            @property
+            def bar(self):
+                return 'bazz'
+
+        f.get_item_id(Foo()) | should.eql('bazz')
+
+    def test_percentage_is_casted_to_integer_if_valid_number_as_string(self):
+        f = Feature('foo', lambda x: True, '100')
+        f.percentage | should.eql(100)
+
+    def test_percentage_should_be_a_number(self):
+        with should.throw(AttributeError):
+            Feature('foo', lambda x: True, 'bar')
+
+    def test_percentage_should_be_lower_than_100(self):
+        with should.throw(AttributeError):
+            Feature('foo', lambda x: True, 101)
+
+    def test_percentage_should_be_greater_than_0(self):
+        with should.throw(AttributeError):
+            Feature('foo', lambda x: True, -1)
+
+    def test_cannot_set_invalid_attributes(self):
+        f = Feature('foo', lambda x: True, 100)
+
+        with should.throw(AttributeError):
+            f.bar
+
+
 class MemoryBackEndTestCase(unittest.TestCase):
     def setUp(self):
         self.backend = MemoryBackEnd()
@@ -147,13 +230,13 @@ class RedisBackEndTestCase(unittest.TestCase):
         fn = "FOO"
         func = Feature(fn, None, 50)
         self.backend.add_functionality(func)
-        self.backend.is_enabled(fn, "0") | should.be_falsy()
+        self.backend.is_enabled(fn, "0") | should.be_true()
 
     def test_is_enabled_func_in_an_user_that_does_match_the_percentage(self):
         fn = "FOO"
         func = Feature(fn, None, 50)
         self.backend.add_functionality(func)
-        self.backend.is_enabled(fn, "1") | should.be_truthy()
+        self.backend.is_enabled(fn, "1") | should.be_false()
 
     def test_disable(self):
         fn = "FOO"
@@ -328,13 +411,13 @@ class RedisHighPerfBackEndTestCase(unittest.TestCase):
         fn = "FOO"
         func = Feature(fn, None, 50)
         self.backend.add_functionality(func)
-        self.backend.is_enabled(fn, "0") | should.be_falsy()
+        self.backend.is_enabled(fn, "0") | should.be_true()
 
     def test_is_enabled_func_in_an_user_that_does_match_the_percentage(self):
         fn = "FOO"
         func = Feature(fn, None, 50)
         self.backend.add_functionality(func)
-        self.backend.is_enabled(fn, "1") | should.be_truthy()
+        self.backend.is_enabled(fn, "1") | should.be_false()
 
     def test_disable(self):
         fn = "FOO"

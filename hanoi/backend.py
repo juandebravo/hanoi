@@ -1,5 +1,6 @@
 import zlib
 from abc import ABCMeta
+from collections import defaultdict
 
 try:
     from redis import Redis
@@ -39,20 +40,22 @@ class Feature(object):
         return value
 
     def get_item_id(self, item):
-        if self.field:
-            if hasattr(self.field, '__call__'):
-                return item.__dict__[self.field]()
-            elif hasattr(item, '__dict__'):
-                return item.__dict__[self.field]
-            else:
-                return item
-        else:
+        """
+        Return the item id to be used.
+        """
+        if self.field is None:
             return str(item)
+        else:
+            _field = getattr(item, self.field)
+            if hasattr(_field, '__call__'):
+                return _field()
+            else:
+                return _field
 
     def __setattr__(self, name, value):
         """
         Validate two fields while setting them:
-        - percentage should be an integeger between 0 and 100
+        - percentage should be an integer between 0 and 100
         - name is read only
         """
         if name == 'percentage':
@@ -74,7 +77,7 @@ class MemoryBackEnd(object):
 
     def __init__(self):
         self.funcs = {}
-        self.reg = {}
+        self.reg = defaultdict(lambda: [])
         self.rules = {}
 
     def get_functionalities(self):
@@ -86,14 +89,8 @@ class MemoryBackEnd(object):
     def get_functionality(self, name):
         return self.funcs.get(name)
 
-    def _add(self, name, item):
-        self.reg[name].append(item)
-
     def add(self, name, item):
-        if not name in self.reg:
-            self.reg[name] = []
-
-        self._add(name, item)
+        self.reg[name].append(item)
 
     def set_rule(self, name, rule):
         self.rules[name] = rule
@@ -112,14 +109,14 @@ class MemoryBackEnd(object):
             return func_is_enabled
 
         flag = self.funcs[name].percentage == 100
-        flag = flag or (name in self.reg and item in self.reg[name])
+        flag = flag or item in self.reg[name]
         flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         if not flag and self.funcs[name].percentage > 0:
             try:  # python 3
                 val = bytes(self.funcs[name].get_item_id(item), 'utf-8')
             except:
                 val = self.funcs[name].get_item_id(item)
-            flag = zlib.crc32(val) % 100 >= self.funcs[name].percentage
+            flag = zlib.crc32(val) % 100 <= self.funcs[name].percentage
         return flag
 
     def disable(self, name):
@@ -138,7 +135,7 @@ class MemoryBackEnd(object):
             return None
         f = self.get_functionality(name)
         try:  # python 3
-            item = bytes(item, "utf-8")
+            item = bytes(item, 'utf-8')
         except:
             pass
 
@@ -153,7 +150,7 @@ class RedisAbstractBackEnd(object):
     """
     __metaclass__ = ABCMeta
 
-    PREFIX = "rollout:{0}"
+    PREFIX = "h:{0}"
 
     def __init__(self, obj=None):
         if obj is None:
@@ -166,6 +163,7 @@ class RedisAbstractBackEnd(object):
             self._redis = obj
 
         self._prefix_len = len(self.PREFIX.format(''))
+
         # TODO: rules should be stored in REDIS as well
         self.rules = {}
 
@@ -183,7 +181,7 @@ class RedisBackEnd(RedisAbstractBackEnd):
         of functionalities is huge: http://redis.io/commands/keys
 
     - Specific functionality information (percentage, users) is stored using a String.
-        Users could be stored via SET, but this will imply a O(N) operation to retrieve
+        Users could be stored via SET, but it would imply a O(N) operation to retrieve
         all the users.
 
     Another approach to store the information:
@@ -191,7 +189,6 @@ class RedisBackEnd(RedisAbstractBackEnd):
     - store the users in a SET and warn about retrieving every user. We might even deprecate the
     `get_functionality` operation as the main purpose is just check if a functionality is enabled
     for a specific user.
-
     """
 
     @classmethod
@@ -204,7 +201,7 @@ class RedisBackEnd(RedisAbstractBackEnd):
             users = field = variants = None
             enabled = '1'
 
-        f = Feature(name, field, percentage, variants)
+        f = Feature(name, field if field != '' else None, percentage, variants)
         f.enabled = enabled == '1'
 
         return f, users.split(",") if users else []
@@ -250,7 +247,8 @@ class RedisBackEnd(RedisAbstractBackEnd):
             else:
                 pass  # Avoid duplicating users
         else:
-            raise ValueError("Functionality <%s> does not exist" % name)  # Functionality does not exist
+            # Functionality does not exist
+            raise ValueError("Functionality <%s> does not exist" % name)
 
     def add(self, name, item):
         self._add(name, item)
@@ -281,14 +279,14 @@ class RedisBackEnd(RedisAbstractBackEnd):
             return func_is_enabled
 
         flag = functionality.percentage == 100
-        flag = flag or (functionality.get_item_id(item) in users)
+        flag = flag or functionality.get_item_id(item) in users
         flag = flag or (name in self.rules and self.rules[name].search(str(item)) is not None)
         if not flag and functionality.percentage > 0:
             try:  # python 3
                 item = bytes(item, 'utf-8')
             except:
                 pass
-            flag = zlib.crc32(item) % 100 >= functionality.percentage
+            flag = zlib.crc32(item) % 100 <= functionality.percentage
         return flag
 
     def disable(self, name):
@@ -331,11 +329,9 @@ class RedisHighPerfBackEnd(RedisAbstractBackEnd):
     - get_functionalities is not implemented
 
     Use this implementation for better performance.
-
     """
 
-    SET_PREFIX = "rollout:users:{0}"
-
+    SET_PREFIX = 'h:users:{0}'
 
     @classmethod
     def unserialize_feature(cls, name, value):
@@ -350,7 +346,7 @@ class RedisHighPerfBackEnd(RedisAbstractBackEnd):
             percentage = 100
             field = variants = None
 
-        f = Feature(name, field, percentage, variants)
+        f = Feature(name, field if field != '' else None, percentage, variants)
         f.enabled = enabled == '1'
 
         return f
@@ -431,7 +427,7 @@ class RedisHighPerfBackEnd(RedisAbstractBackEnd):
                 item = bytes(item, 'utf-8')
             except:
                 pass
-            flag = zlib.crc32(item) % 100 >= functionality.percentage
+            flag = zlib.crc32(item) % 100 <= functionality.percentage
         return flag
 
     def _allowed_user(self, functionality, user):

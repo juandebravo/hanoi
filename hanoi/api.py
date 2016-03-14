@@ -9,6 +9,8 @@ class Rollout(object):
 
     def __init__(self, backend):
         self._backend = backend
+        # `ThreadLocal` alike variable that holds the objectId
+        # to be used
         self._item = None
 
     @property
@@ -23,7 +25,7 @@ class Rollout(object):
         @param name: functionality name
         @param check: object field to be used for checking if the functionality
                       is enabled (i.e. `id` for using the property `id` in an `User` instance)
-        @param percentage: percentage the functionality should be enabled to
+        @param percentage: percentage of objects the functionality should be enabled to
         @param variants: set of valid variants for the functionality
         """
         # TODO: allow getting a `Feature` instance
@@ -56,7 +58,7 @@ class Rollout(object):
         self._item = None
 
     def enabled(self, name):
-        """Decorator for global functionalities without checking the specific user"""
+        """Decorator that checks if a functionality is enabled globally"""
         def real_decorator(fn):
             def wrapper(*args, **kwargs):
                 if self.is_enabled(name):
@@ -67,16 +69,29 @@ class Rollout(object):
         return real_decorator
 
     def variant(self, name, item):
+        """
+        Return the `name` functionality variant for `item` object.
+        It's based on crc32
+        """
         return self.backend.variant(name, item)
 
-    def toggle(self, name):
-        self.backend.toggle(name)
+    def enable(self, name):
+        """
+        Enable `name` functionality
+        """
+        self.backend.enable(name)
 
     def disable(self, name):
+        """
+        Disable `name` functionality
+        """
         self.backend.disable(name)
 
-    def enable(self, name):
-        self.backend.enable(name)
+    def toggle(self, name):
+        """
+        Toggle `name` functionality
+        """
+        self.backend.toggle(name)
 
     def _is_func_defined(self, name):
         return self.backend.get_functionality(name) is not None
